@@ -3,8 +3,9 @@
  */
 
 using System;
+using GameUnityFramework.Log;
 
-namespace GameFramework.Utils
+namespace GameUnityFramework.Utils
 {
     /// <summary>
     /// MonoUpdater委托事件

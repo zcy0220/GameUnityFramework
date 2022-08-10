@@ -4,7 +4,7 @@
 
 using UnityEngine;
 
-namespace GameFramework
+namespace GameUnityFramework
 {
     public class MonoSingleton<T> : MonoBehaviour where T : MonoSingleton<T>
     {
