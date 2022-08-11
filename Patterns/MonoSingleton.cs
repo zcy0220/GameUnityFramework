@@ -4,7 +4,7 @@
 
 using UnityEngine;
 
-namespace GameUnityFramework
+namespace GameUnityFramework.Patterns
 {
     public class MonoSingleton<T> : MonoBehaviour where T : MonoSingleton<T>
     {
@@ -26,7 +26,7 @@ namespace GameUnityFramework
                     _instance = GameObject.FindObjectOfType(type) as T;
                     if (_instance == null)
                     {
-                        _instance = new GameObject(type.Name, type).GetComponent<T>();
+                        _instance = new GameObject($"[MonoSingleton]{type.Name}", type).GetComponent<T>();
                         GameObject.DontDestroyOnLoad(_instance.gameObject);
                     }
                 }

@@ -4,33 +4,40 @@
 
 using UnityEngine;
 using GameUnityFramework.Log;
+using System.IO;
 
 namespace GameUnityFramework.Resource
 {
-    public class EditorResourceLoader : IResourceLoader
+    internal class EditorResourceLoader : BaseResourceLoader
     {
+        /// <summary>
+        /// 构造绑定MonoBehaviour
+        /// </summary>
+        /// <param name="mono"></param>
+        public EditorResourceLoader(MonoBehaviour mono) :base(mono) { }
+
         /// <summary>
         /// 编辑器模式下用AssetDatabase.LoadAssetAtPath同步加载资源
         /// </summary>
         /// <typeparam name="T"></typeparam>
         /// <param name="path"></param>
         /// <returns></returns>
-        public T SyncLoad<T>(string path) where T : Object
+        public override T SyncLoad<T>(string path)
         {
-            if (!Exists(path))
+            var obj = GetCacheResource(path);
+            if (obj != null)
             {
-                Debuger.LogError($"not find resource path: {path}");
-                return null;
+                return obj as T;
             }
-
 #if UNITY_EDITOR
-            var obj = UnityEditor.AssetDatabase.LoadAssetAtPath<T>(path);
+            obj = UnityEditor.AssetDatabase.LoadAssetAtPath<T>(path);
             if (obj == null)
             {
                 Debuger.LogError($"syncload resource failed: {path}");
                 return null;
             }
-            return obj;
+            CacheResource(path, obj);
+            return obj as T;
 #endif
         }
 
@@ -40,22 +47,72 @@ namespace GameUnityFramework.Resource
         /// </summary>
         /// <param name="path"></param>
         /// <param name="callback"></param>
-        public void AsyncLoad(string path, System.Action<Object> callback)
+        public override void AsyncLoad(string path, System.Action<Object> callback)
         {
-            if (!Exists(path))
+            var obj = GetCacheResource(path);
+            if (obj != null)
             {
-                Debuger.LogError($"not find resource path: {path}");
+                callback(obj);
                 return;
+            }
+            var request = new AsyncLoadRequest();
+            request.Path = path;
+            request.Callback = callback;
+            _asyncLoadRequestQueue.Enqueue(request);
+        }
+
+        /// <summary>
+        /// Update检测异步加载请求
+        /// </summary>
+        public override void Update()
+        {
+            if (_asyncLoadRequestQueue.Count > 0)
+            {
+                var request = _asyncLoadRequestQueue.Dequeue();
+
+                var obj = GetCacheResource(request.Path);
+                if (obj != null)
+                {
+                    request.Callback(obj);
+                    return;
+                }
+
+#if UNITY_EDITOR
+                obj = UnityEditor.AssetDatabase.LoadAssetAtPath<Object>(request.Path);
+                if (obj == null)
+                {
+                    Debuger.LogError($"asyncLoad resource failed: {request.Path}");
+                    return;
+                }
+                CacheResource(request.Path, obj);
+                request.Callback(obj);
+                return;
+#endif
             }
         }
 
-        public void Unload(string path)
+        /// <summary>
+        /// 编辑器模式下没有卸载指定路径资源的方法
+        /// </summary>
+        /// <param name="path"></param>
+        public override void Unload(string path)
         {
+            var obj = GetCacheResource(path);
+            if (obj != null)
+            {
+                Resources.UnloadAsset(obj);
+            }
+            ClearCacheResource(path);
         }
 
-        public bool Exists(string path)
+        /// <summary>
+        /// 判断资源路径是否存在
+        /// </summary>
+        /// <param name="path"></param>
+        /// <returns></returns>
+        public override bool Exists(string path)
         {
-            return false;
+            return File.Exists(Path.Combine(Application.dataPath, path));
         }
     }
 }
