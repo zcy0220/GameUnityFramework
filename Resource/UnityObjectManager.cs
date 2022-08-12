@@ -3,13 +3,12 @@
  */
 
 using UnityEngine;
-using GameBaseFramework.Patterns;
 using GameUnityFramework.Log;
-using GameUnityFramework.Patterns;
+using GameUnityFramework.Utils;
 
 namespace GameUnityFramework.Resource
 {
-    public class UnityObjectManager : Singleton<UnityObjectManager>
+    public class UnityObjectManager
     {
         /// <summary>
         /// 资源加载器
@@ -19,36 +18,51 @@ namespace GameUnityFramework.Resource
         /// <summary>
         /// 初始化资源加载器
         /// </summary>
-        public void Init(MonoBehaviour mono)
+        public UnityObjectManager(string resourcePathPrefix)
         {
+            ResourcePathHelper.ResourcePathPrefix = resourcePathPrefix;
 #if UNITY_EDITOR
-            _resourceLoader = new EditorResourceLoader(mono);
+            _resourceLoader = new EditorResourceLoader();
 #else
-            _resourceLoader = new AssetBundleLoader(mono);
+            _resourceLoader = new AssetBundleLoader();
 #endif
-        }
-
-        /// <summary>
-        /// Update
-        /// </summary>
-        public void Update()
-        {
-            if (_resourceLoader != null)
-            {
-                _resourceLoader.Update();
-            }
+            MonoBehaviourUtils.Instance.AddUpdateListener(_resourceLoader.Update);
         }
 
         #region 同步加载实例化对象资源
         public GameObject SyncGameObjectInstantiate(string path)
         {
+            path = ResourcePathHelper.GetFullResourcePath(path);
             var orginal = _resourceLoader.SyncLoad<GameObject>(path);
             if (orginal != null)
             {
                 var obj = GameObject.Instantiate(orginal);
                 return obj;
             }
-            return null;
+            else
+            {
+                Debuger.LogError($"syncload resource failed: {path}");
+                return null;
+            }
+        }
+        #endregion
+
+        #region 异步加载实例化对象资源
+        public void AsyncGameObjectInstantiate(string path, System.Action<GameObject> callback)
+        {
+            path = ResourcePathHelper.GetFullResourcePath(path);
+            _resourceLoader.AsyncLoad(path, (orginal) =>
+            {
+                if (orginal != null)
+                {
+                    var obj = GameObject.Instantiate(orginal) as GameObject;
+                    callback(obj);
+                }
+                else
+                {
+                    Debuger.LogError($"asyncload resource failed: {path}");
+                }
+            });
         }
         #endregion
     }

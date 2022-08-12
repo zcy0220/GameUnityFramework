@@ -7,19 +7,19 @@ using UnityEngine;
 
 namespace GameUnityFramework.Resource
 {
-    internal class ResourcePathHelper
+    public class ResourcePathHelper
     {
         /// <summary>
         /// 资源完整路径的前缀
         /// </summary>
-        private static string _resourcePathPrefix;
+        public static string ResourcePathPrefix;
 
         /// <summary>
         /// 获得资源的完整路径
         /// </summary>
         public static string GetFullResourcePath(string path)
         {
-            return Path.Combine(_resourcePathPrefix, path);
+            return Path.Combine(ResourcePathPrefix, path);
         }
 
         /// <summary>

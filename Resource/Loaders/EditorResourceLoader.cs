@@ -11,12 +11,6 @@ namespace GameUnityFramework.Resource
     internal class EditorResourceLoader : BaseResourceLoader
     {
         /// <summary>
-        /// 构造绑定MonoBehaviour
-        /// </summary>
-        /// <param name="mono"></param>
-        public EditorResourceLoader(MonoBehaviour mono) :base(mono) { }
-
-        /// <summary>
         /// 编辑器模式下用AssetDatabase.LoadAssetAtPath同步加载资源
         /// </summary>
         /// <typeparam name="T"></typeparam>
@@ -24,18 +18,22 @@ namespace GameUnityFramework.Resource
         /// <returns></returns>
         public override T SyncLoad<T>(string path)
         {
-            var obj = GetCacheResource(path);
-            if (obj != null)
+            if (!Exists(path))
             {
-                return obj as T;
-            }
-#if UNITY_EDITOR
-            obj = UnityEditor.AssetDatabase.LoadAssetAtPath<T>(path);
-            if (obj == null)
-            {
-                Debuger.LogError($"syncload resource failed: {path}");
+                Debuger.LogError($"not find resource path: {path}");
                 return null;
             }
+
+            if (_resourceCache.TryGetValue(path, out var obj))
+            {
+                if (obj != null)
+                {
+                    return obj as T;
+                }
+            }
+
+#if UNITY_EDITOR
+            obj = UnityEditor.AssetDatabase.LoadAssetAtPath<T>(path);
             CacheResource(path, obj);
             return obj as T;
 #endif
@@ -49,12 +47,21 @@ namespace GameUnityFramework.Resource
         /// <param name="callback"></param>
         public override void AsyncLoad(string path, System.Action<Object> callback)
         {
-            var obj = GetCacheResource(path);
-            if (obj != null)
+            if (!Exists(path))
             {
-                callback(obj);
+                Debuger.LogError($"not find resource path: {path}");
                 return;
             }
+
+            if (_resourceCache.TryGetValue(path, out var obj))
+            {
+                if (obj != null)
+                {
+                    callback.Invoke(obj);
+                    return;
+                }
+            }
+            
             var request = new AsyncLoadRequest();
             request.Path = path;
             request.Callback = callback;
@@ -70,20 +77,16 @@ namespace GameUnityFramework.Resource
             {
                 var request = _asyncLoadRequestQueue.Dequeue();
 
-                var obj = GetCacheResource(request.Path);
-                if (obj != null)
+                if (_resourceCache.TryGetValue(request.Path, out var obj))
                 {
-                    request.Callback(obj);
-                    return;
+                    if (obj != null)
+                    {
+                        request.Callback.Invoke(obj);
+                        return;
+                    }
                 }
-
 #if UNITY_EDITOR
                 obj = UnityEditor.AssetDatabase.LoadAssetAtPath<Object>(request.Path);
-                if (obj == null)
-                {
-                    Debuger.LogError($"asyncLoad resource failed: {request.Path}");
-                    return;
-                }
                 CacheResource(request.Path, obj);
                 request.Callback(obj);
                 return;
@@ -97,10 +100,12 @@ namespace GameUnityFramework.Resource
         /// <param name="path"></param>
         public override void Unload(string path)
         {
-            var obj = GetCacheResource(path);
-            if (obj != null)
+            if (_resourceCache.TryGetValue(path, out var obj))
             {
-                Resources.UnloadAsset(obj);
+                if (obj != null)
+                {
+                    Resources.UnloadAsset(obj);
+                }
             }
             ClearCacheResource(path);
         }
@@ -112,7 +117,8 @@ namespace GameUnityFramework.Resource
         /// <returns></returns>
         public override bool Exists(string path)
         {
-            return File.Exists(Path.Combine(Application.dataPath, path));
+            var prefix = "Assets";
+            return File.Exists(Path.Combine(Application.dataPath, path.Substring(prefix.Length + 1)));
         }
     }
 }
