@@ -50,7 +50,7 @@ namespace GameUnityFramework.Resource
         /// <summary>
         /// Update
         /// </summary>
-        public virtual void Update() { }
+        public virtual void Update(float deltaTime) { }
 
         /// <summary>
         /// 清理缓存资源

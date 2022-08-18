@@ -4,16 +4,21 @@
 
 using System;
 using GameUnityFramework.Log;
-using GameUnityFramework.Patterns;
+using GameBaseFramework.Patterns;
 
 namespace GameUnityFramework.Utils
 {
     /// <summary>
     /// MonoUpdater委托事件
     /// </summary>
-    public delegate void MonoUpdateEvent();
+    public delegate void MonoUpdateEvent(float deltaTime);
+    /// <summary>
+    /// FixedUpdate委托事件
+    /// 单位毫秒
+    /// </summary>
+    public delegate void MonoFixedUpdateEvent(int deltaTime);
 
-    public class MonoBehaviourUtils : MonoSingleton<MonoBehaviourUtils>
+    public class MonoBehaviourUtils : Singleton<MonoBehaviourUtils>
     {
         /// <summary>
         /// 渲染Update
@@ -22,7 +27,7 @@ namespace GameUnityFramework.Utils
         /// <summary>
         /// 物理固定时间Update
         /// </summary>
-        private event MonoUpdateEvent FixedUpdateEvent;
+        private event MonoFixedUpdateEvent FixedUpdateEvent;
 
         /// <summary>
         /// AddUpdateListener
@@ -46,7 +51,7 @@ namespace GameUnityFramework.Utils
         /// AddFixedUpdateListener
         /// </summary>
         /// <param name="listener"></param>
-        public void AddFixedUpdateListener(MonoUpdateEvent listener)
+        public void AddFixedUpdateListener(MonoFixedUpdateEvent listener)
         {
             FixedUpdateEvent += listener;
         }
@@ -55,7 +60,7 @@ namespace GameUnityFramework.Utils
         /// RemoveFixedUpdateListener
         /// </summary>
         /// <param name="listener"></param>
-        public void RemoveFixedUpdateListener(MonoUpdateEvent listener)
+        public void RemoveFixedUpdateListener(MonoFixedUpdateEvent listener)
         {
             FixedUpdateEvent -= listener;
         }
@@ -63,13 +68,13 @@ namespace GameUnityFramework.Utils
         /// <summary>
         /// Update
         /// </summary>
-        private void Update()
+        public void Update(float deltaTime)
         {
             if (UpdateEvent != null)
             {
                 try
                 {
-                    UpdateEvent();
+                    UpdateEvent(deltaTime);
                 }
                 catch (Exception e)
                 {
@@ -81,13 +86,13 @@ namespace GameUnityFramework.Utils
         /// <summary>
         /// FixedUpdate
         /// </summary>
-        private void FixedUpdate()
+        public void FixedUpdate(int deltaTime)
         {
             if (FixedUpdateEvent != null)
             {
                 try
                 {
-                    FixedUpdateEvent();
+                    FixedUpdateEvent(deltaTime);
                 }
                 catch (Exception e)
                 {

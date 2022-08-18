@@ -71,7 +71,7 @@ namespace GameUnityFramework.Resource
         /// <summary>
         /// Update检测异步加载请求
         /// </summary>
-        public override void Update()
+        public override void Update(float deltaTime)
         {
             if (_asyncLoadRequestQueue.Count > 0)
             {
