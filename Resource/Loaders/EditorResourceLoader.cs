@@ -2,9 +2,9 @@
  * 编辑模式下资源加载器
  */
 
+using System.IO;
 using UnityEngine;
 using GameUnityFramework.Log;
-using System.IO;
 
 namespace GameUnityFramework.Resource
 {
@@ -62,36 +62,34 @@ namespace GameUnityFramework.Resource
                 }
             }
             
-            var request = new AsyncLoadRequest();
-            request.Path = path;
-            request.Callback = callback;
-            _asyncLoadRequestQueue.Enqueue(request);
+            foreach (var request in _asyncLoadRequestQueue)
+            {
+                if (request.Path.Equals(path, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    request.Callback += callback;
+                    return;
+                }
+            }
+
+            _asyncLoadRequestQueue.Enqueue(new AsyncLoadRequest() { Path = path, Callback = callback });
         }
 
         /// <summary>
         /// Update检测异步加载请求
         /// </summary>
-        public override void Update(float deltaTime)
+        public override void Update()
         {
+#if UNITY_EDITOR
             if (_asyncLoadRequestQueue.Count > 0)
             {
+                Debug.LogError("_asyncLoadRequestQueue");
                 var request = _asyncLoadRequestQueue.Dequeue();
-
-                if (_resourceCache.TryGetValue(request.Path, out var obj))
-                {
-                    if (obj != null)
-                    {
-                        request.Callback.Invoke(obj);
-                        return;
-                    }
-                }
-#if UNITY_EDITOR
-                obj = UnityEditor.AssetDatabase.LoadAssetAtPath<Object>(request.Path);
+                var obj = UnityEditor.AssetDatabase.LoadAssetAtPath<Object>(request.Path);
                 CacheResource(request.Path, obj);
                 request.Callback(obj);
                 return;
-#endif
             }
+#endif
         }
 
         /// <summary>

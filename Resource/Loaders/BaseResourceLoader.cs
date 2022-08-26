@@ -4,7 +4,6 @@
 
 using UnityEngine;
 using System.Collections.Generic;
-using GameUnityFramework.Log;
 
 namespace GameUnityFramework.Resource
 {
@@ -50,7 +49,7 @@ namespace GameUnityFramework.Resource
         /// <summary>
         /// Update
         /// </summary>
-        public virtual void Update(float deltaTime) { }
+        public virtual void Update() { }
 
         /// <summary>
         /// 清理缓存资源

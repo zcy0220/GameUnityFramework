@@ -4,7 +4,6 @@
 
 using UnityEngine;
 using GameUnityFramework.Log;
-using GameUnityFramework.Utils;
 
 namespace GameUnityFramework.Resource
 {
@@ -26,7 +25,6 @@ namespace GameUnityFramework.Resource
 #else
             _resourceLoader = new AssetBundleLoader();
 #endif
-            MonoBehaviourUtils.Instance.AddUpdateListener(_resourceLoader.Update);
         }
 
         #region 同步加载实例化对象资源
@@ -63,6 +61,17 @@ namespace GameUnityFramework.Resource
                     Debuger.LogError($"asyncload resource failed: {path}");
                 }
             });
+        }
+
+        /// <summary>
+        /// Update
+        /// </summary>
+        public void Update()
+        {
+            if (_resourceLoader != null)
+            {
+                _resourceLoader.Update();
+            }
         }
         #endregion
     }
