@@ -38,8 +38,8 @@ namespace GameUnityFramework.Resource
                 }
             }
 
-            obj = UnityEditor.AssetDatabase.LoadAssetAtPath<T>(path);
-            CacheResource(path, obj);
+            //obj = UnityEditor.AssetDatabase.LoadAssetAtPath<T>(path);
+            //CacheResource(path, obj);
             return obj as T;
         }
 

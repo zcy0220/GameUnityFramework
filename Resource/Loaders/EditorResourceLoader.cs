@@ -36,6 +36,8 @@ namespace GameUnityFramework.Resource
             obj = UnityEditor.AssetDatabase.LoadAssetAtPath<T>(path);
             CacheResource(path, obj);
             return obj as T;
+#else
+            return null;
 #endif
         }
 
