@@ -413,6 +413,7 @@ namespace GameUnityFramework.Resource
                 {
                     Debug.LogError(downloadAssetBundleItem.AssetBundleName);
                     ReplaceLocalResource(downloadAssetBundleItem.AssetBundleName, downloadAssetBundleItem.AssetBundleRequest.downloadHandler.data);
+                    _downloadAssetBundleItemPool.Enqueue(downloadAssetBundleItem);
                     _downloadAssetBundleList.RemoveAt(i);
                 }
                 else if (!string.IsNullOrWhiteSpace(downloadHandler.error))
