@@ -18,7 +18,7 @@ namespace GameUnityFramework.Utils
     /// </summary>
     public delegate void MonoFixedUpdateEvent(int deltaTime);
 
-    public class MonoBehaviourUtils : Singleton<MonoBehaviourUtils>
+    public class MonoBehaviourUtil : Singleton<MonoBehaviourUtil>
     {
         /// <summary>
         /// 渲染Update

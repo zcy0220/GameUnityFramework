@@ -16,24 +16,30 @@ namespace GameUnityFramework.Resource
     /// </summary>
     public class VersionConfig
     {
-        /// <summary>
-        /// 版本号
-        /// </summary>
         public string Version;
     }
 
     /// <summary>
     /// 热更新资源结果
     /// </summary>
-    public enum EHotfixResourceResult
+    public enum EHotfixResourceStatus
     {
-        Hotfix,
+        None,
         NewVersion,
+        StartHotfix,
+        HotfixSuccess,
         InitLocalVersionError,
         InitServerVersionError,
+        DownloadError
     }
 
-    public class HotfixResourceManager
+    public class DownloadAssetBundleItem
+    {
+        public string AssetBundleName;
+        public UnityWebRequest AssetBundleRequest = new UnityWebRequest();
+    }
+
+    public class HotfixResourceManager : MonoBehaviour
     {
         /// <summary>
         /// VersionConfig的文件路径(相对于Application.streamingAssetsPath)
@@ -48,6 +54,7 @@ namespace GameUnityFramework.Resource
         /// </summary>
         private const string AssetBundlesFolder = "assetbundles";
         //=============================================================
+        private static HotfixResourceManager _self;
         /// <summary>
         /// 本地版本配置信息
         /// </summary>
@@ -57,13 +64,17 @@ namespace GameUnityFramework.Resource
         /// </summary>
         private VersionConfig _serverVersionConfig;
         /// <summary>
-        /// 热更新结果
+        /// 当前状态
         /// </summary>
-        private EHotfixResourceResult _result;
+        private EHotfixResourceStatus _status = EHotfixResourceStatus.None;
         /// <summary>
         /// 需要总的下载资源数 = 服务器上与本地所有的AB差异数
         /// </summary>
         private int _totalDownloadCount = 0;
+        /// <summary>
+        /// 完成下载的数量
+        /// </summary>
+        private int _completeDownloadCount = 0;
         /// <summary>
         /// 需要热更新下载的AssetBundle队列 = _totalDownloadCount - _completeDownloadList
         /// </summary>
@@ -76,26 +87,44 @@ namespace GameUnityFramework.Resource
         /// 已下载的资源写入Stream
         /// </summary>
         private StreamWriter _completeDownloadStreamWriter;
+        /// <summary>
+        /// 对象池
+        /// </summary>
+        private Queue<DownloadAssetBundleItem> _downloadAssetBundleItemPool = new Queue<DownloadAssetBundleItem>();
+        /// <summary>
+        /// 正在下载的UnityWebRequest
+        /// </summary>
+        private List<DownloadAssetBundleItem> _downloadAssetBundleList = new List<DownloadAssetBundleItem>();
         //=============================================================
         /// <summary>
         /// 热更新服务器地址
         /// </summary>
         public string ServerAddress;
         /// <summary>
-        /// 回调
+        /// 状态回调
         /// </summary>
-        public System.Action<EHotfixResourceResult> FinishedCallback;
+        public System.Action<EHotfixResourceStatus> OnStatusCallback;
         //=============================================================
+
+        /// <summary>
+        /// 初始化
+        /// </summary>
+        public static void Init(string serverAddress, System.Action<EHotfixResourceStatus> onStatusCallback)
+        {
+            _self = new GameObject("HotfixResourceManager").AddComponent<HotfixResourceManager>();
+            _self.ServerAddress = serverAddress;
+            _self.OnStatusCallback = onStatusCallback;
+            _self.StartCoroutine(_self.Startup());
+        }
 
         /// <summary>
         /// 开始检测热更新
         /// </summary>
-        public IEnumerator Start()
+        private IEnumerator Startup()
         {
             yield return InitLocalVersionConfig();
             yield return InitServerVersionConfig();
             yield return CompareVersionConfig();
-            FinishedCallback?.Invoke(_result);
         }
 
         /// <summary>
@@ -104,19 +133,21 @@ namespace GameUnityFramework.Resource
         private IEnumerator InitLocalVersionConfig()
         {
             var localVersionConfigPath = ResourcePathHelper.GetLocalFilePath(VersionConfigFile);
-            var uwr = new UnityWebRequest(localVersionConfigPath);
+            var uwr = new UnityWebRequest();
+            uwr.uri = new Uri(localVersionConfigPath);
             uwr.downloadHandler = new DownloadHandlerBuffer();
             yield return uwr.SendWebRequest();
-
-            if (uwr.result == UnityWebRequest.Result.Success)
+            var result = uwr.result;
+            if (result == UnityWebRequest.Result.Success)
             {
                 _localVersionConfig = JsonUtility.FromJson<VersionConfig>(uwr.downloadHandler.text);
             }
             else
             {
-                _result = EHotfixResourceResult.InitLocalVersionError;
+                GameObject.Destroy(_self.gameObject);
+                _status = EHotfixResourceStatus.InitLocalVersionError;
+                OnStatusCallback?.Invoke(_status);
             }
-
             uwr.downloadHandler.Dispose();
             uwr.Dispose();
         }
@@ -127,19 +158,21 @@ namespace GameUnityFramework.Resource
         private IEnumerator InitServerVersionConfig()
         {
             var versionConfigPath = ServerAddress + VersionConfigFile;
-            var uwr = new UnityWebRequest(versionConfigPath);
+            var uwr = new UnityWebRequest();
+            uwr.uri = new Uri(versionConfigPath);
             uwr.downloadHandler = new DownloadHandlerBuffer();
             yield return uwr.SendWebRequest();
-
-            if (uwr.result == UnityWebRequest.Result.Success)
+            var result = uwr.result;
+            if (result == UnityWebRequest.Result.Success)
             {
                 _serverVersionConfig = JsonUtility.FromJson<VersionConfig>(uwr.downloadHandler.text);
             }
             else
             {
-                _result = EHotfixResourceResult.InitServerVersionError;
+                GameObject.Destroy(_self.gameObject);
+                _status = EHotfixResourceStatus.InitServerVersionError;
+                OnStatusCallback?.Invoke(_status);
             }
-
             uwr.downloadHandler.Dispose();
             uwr.Dispose();
         }
@@ -161,14 +194,17 @@ namespace GameUnityFramework.Resource
                 // 大版本更新
                 if (serverVersion0 > localVersion0)
                 {
-                    _result = EHotfixResourceResult.NewVersion;
+                    GameObject.Destroy(_self.gameObject);
+                    _status = EHotfixResourceStatus.NewVersion;
+                    OnStatusCallback?.Invoke(_status);
                     yield return null;
                 }
                 // 热更新
                 if (serverVersion0 == localVersion0 && serverVersion1 > localVersion1)
                 {
-                    _result = EHotfixResourceResult.Hotfix;
                     yield return CompareResources();
+                    _status = EHotfixResourceStatus.StartHotfix;
+                    OnStatusCallback?.Invoke(_status);
                 }
             }
         }
@@ -226,7 +262,7 @@ namespace GameUnityFramework.Resource
                         AddNeedDownLoadResource(assetBundleName);
                     }
                 }
-                AddNeedDownLoadResource(AssetBundlesFolder);
+                if (_totalDownloadCount > 0) AddNeedDownLoadResource(AssetBundlesFolder);
                 serverManifestAssetBundle.Unload(true);
             }
             serverUWR.Dispose();
@@ -268,25 +304,13 @@ namespace GameUnityFramework.Resource
         }
 
         /// <summary>
-        /// 下载资源
+        /// 更新配置文件
         /// </summary>
-        /// <returns></returns>
-        private IEnumerator DownLoadResources()
+        private void UpdateVersionConfig()
         {
-            while (_needDownloadQueue.Count > 0)
-            {
-                var assetBundleName = _needDownloadQueue.Dequeue();
-                var url = ServerAddress + AssetBundlesFolder + "/" + assetBundleName;
-                var uwr = new UnityWebRequest(url);
-                uwr.downloadHandler = new DownloadHandlerBuffer();
-                yield return uwr.SendWebRequest();
-                if (uwr.result == UnityWebRequest.Result.Success)
-                {
-                    ReplaceLocalResource(assetBundleName, uwr.downloadHandler.data);
-                }
-                uwr.downloadHandler.Dispose();
-                uwr.Dispose();
-            }
+            var path = ResourcePathHelper.GetPresistentDataFilePath(VersionConfigFile);
+            var text = JsonUtility.ToJson(_serverVersionConfig);
+            WriteAllText(path, text);
         }
 
         /// <summary>
@@ -294,24 +318,118 @@ namespace GameUnityFramework.Resource
         /// </summary>
         private void ReplaceLocalResource(string assetBundleName, byte[] data)
         {
-            if (data == null) return;
             try
             {
                 var assetBundlePath = AssetBundlesFolder + "/" + assetBundleName;
                 var path = ResourcePathHelper.GetPresistentDataFilePath(assetBundlePath);
-                //FileEx.WriteAllBytes(path, data);
-                //_needDownloadQueue.Dequeue();
-                //if (_completeDownloadStreamWriter == null)
-                //{
-                //    var completeDownloadFilePath = ResourcePath.GetPresistentDataFilePath(COMPLETEDOWNLOADFILE);
-                //    _completeDownloadStreamWriter = new StreamWriter(completeDownloadFilePath);
-                //}
-                //_completeDownloadStreamWriter.Write(abName + ",");
-                //_completeDownloadStreamWriter.Flush();
+                WriteAllBytes(path, data);
+                if (_completeDownloadStreamWriter == null)
+                {
+                    var completeDownloadFilePath = ResourcePathHelper.GetPresistentDataFilePath(CompleteDownloadFile);
+                    _completeDownloadStreamWriter = new StreamWriter(completeDownloadFilePath);
+                }
+                _completeDownloadStreamWriter.Write(assetBundleName + ",");
+                _completeDownloadStreamWriter.Flush();
+
+                _completeDownloadCount++;
             }
             catch (System.Exception e)
             {
                 Debug.LogError(e.Message);
+            }
+        }
+
+        /// <summary>
+        /// 检测文件并创建对应文件夹
+        /// </summary>
+        public static bool CheckFileAndCreateDirWhenNeeded(string filePath)
+        {
+            if (string.IsNullOrEmpty(filePath)) return false;
+            var fileInfo = new FileInfo(filePath);
+            var dirInfo = fileInfo.Directory;
+            if (!dirInfo.Exists) Directory.CreateDirectory(dirInfo.FullName);
+            return true;
+        }
+
+        /// <summary>
+        /// WriteAllText.
+        /// </summary>
+        private bool WriteAllText(string outFile, string outText)
+        {
+            try
+            {
+                if (!CheckFileAndCreateDirWhenNeeded(outFile)) return false;
+                if (File.Exists(outFile)) File.SetAttributes(outFile, FileAttributes.Normal);
+                File.WriteAllText(outFile, outText);
+                return true;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"WriteAllText failed! path = {outFile} with err = {e.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// WriteAllBytes
+        /// </summary>
+        private bool WriteAllBytes(string outFile, byte[] outBytes)
+        {
+            try
+            {
+                if (!CheckFileAndCreateDirWhenNeeded(outFile)) return false;
+                if (File.Exists(outFile)) File.SetAttributes(outFile, FileAttributes.Normal);
+                File.WriteAllBytes(outFile, outBytes);
+                return true;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogError($"WriteAllBytes failed! path = {outFile} with err = {e.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// 检测下载队列
+        /// </summary>
+        private void Update()
+        {
+            while(_needDownloadQueue.Count > 0 && _downloadAssetBundleList.Count < 10)
+            {
+                var assetBundleName = _needDownloadQueue.Dequeue();
+                var downloadAssetBundleItem = _downloadAssetBundleItemPool.Count == 0 ? new DownloadAssetBundleItem() : _downloadAssetBundleItemPool.Dequeue();
+                downloadAssetBundleItem.AssetBundleName = assetBundleName;
+                var url = ServerAddress + AssetBundlesFolder + "/" + assetBundleName;
+                downloadAssetBundleItem.AssetBundleRequest.uri = new Uri(url);
+                downloadAssetBundleItem.AssetBundleRequest.downloadHandler = new DownloadHandlerBuffer();
+                downloadAssetBundleItem.AssetBundleRequest.SendWebRequest();
+                _downloadAssetBundleList.Add(downloadAssetBundleItem);
+            }
+            for (int i = _downloadAssetBundleList.Count - 1; i >= 0; i--)
+            {
+                var downloadAssetBundleItem = _downloadAssetBundleList[i];
+                var downloadHandler = downloadAssetBundleItem.AssetBundleRequest.downloadHandler;
+                if (downloadHandler.isDone)
+                {
+                    Debug.LogError(downloadAssetBundleItem.AssetBundleName);
+                    ReplaceLocalResource(downloadAssetBundleItem.AssetBundleName, downloadAssetBundleItem.AssetBundleRequest.downloadHandler.data);
+                    _downloadAssetBundleList.RemoveAt(i);
+                }
+                else if (!string.IsNullOrWhiteSpace(downloadHandler.error))
+                {
+                    //todo:下载错误，记录AssetBundle再多下载一次，如果还错误，报DownloadError
+                }
+            }
+
+            if (_status == EHotfixResourceStatus.StartHotfix)
+            {
+                if (_completeDownloadCount == _totalDownloadCount)
+                {
+                    UpdateVersionConfig();
+                    GameObject.Destroy(_self.gameObject);
+                    _status = EHotfixResourceStatus.HotfixSuccess;
+                    OnStatusCallback?.Invoke(_status);
+                }
             }
         }
     }
