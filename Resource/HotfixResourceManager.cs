@@ -27,7 +27,7 @@ namespace GameUnityFramework.Resource
         None,
         NewVersion,
         StartHotfix,
-        HotfixSuccess,
+        EnterGame,
         InitLocalVersionError,
         InitServerVersionError,
         DownloadError
@@ -54,7 +54,10 @@ namespace GameUnityFramework.Resource
         /// </summary>
         private const string AssetBundlesFolder = "assetbundles";
         //=============================================================
-        private static HotfixResourceManager _self;
+        /// <summary>
+        /// 热更新服务器地址
+        /// </summary>
+        private string _serverAddress;
         /// <summary>
         /// 本地版本配置信息
         /// </summary>
@@ -72,10 +75,6 @@ namespace GameUnityFramework.Resource
         /// </summary>
         private int _totalDownloadCount = 0;
         /// <summary>
-        /// 完成下载的数量
-        /// </summary>
-        private int _completeDownloadCount = 0;
-        /// <summary>
         /// 需要热更新下载的AssetBundle队列 = _totalDownloadCount - _completeDownloadList
         /// </summary>
         private Queue<string> _needDownloadQueue = new Queue<string>();
@@ -88,43 +87,55 @@ namespace GameUnityFramework.Resource
         /// </summary>
         private StreamWriter _completeDownloadStreamWriter;
         /// <summary>
-        /// 对象池
-        /// </summary>
-        private Queue<DownloadAssetBundleItem> _downloadAssetBundleItemPool = new Queue<DownloadAssetBundleItem>();
-        /// <summary>
         /// 正在下载的UnityWebRequest
         /// </summary>
         private List<DownloadAssetBundleItem> _downloadAssetBundleList = new List<DownloadAssetBundleItem>();
         //=============================================================
         /// <summary>
-        /// 热更新服务器地址
-        /// </summary>
-        public string ServerAddress;
-        /// <summary>
         /// 状态回调
         /// </summary>
-        public System.Action<EHotfixResourceStatus> OnStatusCallback;
+        public System.Action<EHotfixResourceStatus> OnStatusCallback { get; set; }
         //=============================================================
-
+        /*
+         * 表现层
+         */
+        public UnityEngine.UI.Text TextProgress;
+        public UnityEngine.UI.Slider SliderProgress;
         /// <summary>
-        /// 初始化
+        /// 设置进度
         /// </summary>
-        public static void Init(string serverAddress, System.Action<EHotfixResourceStatus> onStatusCallback)
+        /// <param name="progress"></param>
+        private void SetProgress(float progress)
         {
-            _self = new GameObject("HotfixResourceManager").AddComponent<HotfixResourceManager>();
-            _self.ServerAddress = serverAddress;
-            _self.OnStatusCallback = onStatusCallback;
-            _self.StartCoroutine(_self.Startup());
+            if (TextProgress != null)
+            {
+                TextProgress.text = $"{Mathf.FloorToInt(progress * 100)}%";
+            }
+            if (SliderProgress != null)
+            {
+                SliderProgress.value = progress;
+            }
         }
+        //=============================================================
 
         /// <summary>
         /// 开始检测热更新
         /// </summary>
-        private IEnumerator Startup()
+        public IEnumerator Startup(string serverAddress)
         {
+            _serverAddress = serverAddress;
             yield return InitLocalVersionConfig();
             yield return InitServerVersionConfig();
             yield return CompareVersionConfig();
+        }
+
+        /// <summary>
+        /// 获取服务器上的资源路径
+        /// </summary>
+        /// <returns></returns>
+        private string GetServerAssetURL(string path)
+        {
+            return _serverAddress + "/" + path;
         }
 
         /// <summary>
@@ -144,7 +155,7 @@ namespace GameUnityFramework.Resource
             }
             else
             {
-                GameObject.Destroy(_self.gameObject);
+                DestroySelf();
                 _status = EHotfixResourceStatus.InitLocalVersionError;
                 OnStatusCallback?.Invoke(_status);
             }
@@ -157,7 +168,7 @@ namespace GameUnityFramework.Resource
         /// </summary>
         private IEnumerator InitServerVersionConfig()
         {
-            var versionConfigPath = ServerAddress + VersionConfigFile;
+            var versionConfigPath = GetServerAssetURL(VersionConfigFile);
             var uwr = new UnityWebRequest();
             uwr.uri = new Uri(versionConfigPath);
             uwr.downloadHandler = new DownloadHandlerBuffer();
@@ -169,7 +180,7 @@ namespace GameUnityFramework.Resource
             }
             else
             {
-                GameObject.Destroy(_self.gameObject);
+                DestroySelf();
                 _status = EHotfixResourceStatus.InitServerVersionError;
                 OnStatusCallback?.Invoke(_status);
             }
@@ -194,17 +205,26 @@ namespace GameUnityFramework.Resource
                 // 大版本更新
                 if (serverVersion0 > localVersion0)
                 {
-                    GameObject.Destroy(_self.gameObject);
+                    DestroySelf();
                     _status = EHotfixResourceStatus.NewVersion;
                     OnStatusCallback?.Invoke(_status);
                     yield return null;
                 }
                 // 热更新
-                if (serverVersion0 == localVersion0 && serverVersion1 > localVersion1)
+                if (serverVersion0 == localVersion0)
                 {
-                    yield return CompareResources();
-                    _status = EHotfixResourceStatus.StartHotfix;
-                    OnStatusCallback?.Invoke(_status);
+                    if (serverVersion1 > localVersion1)
+                    {
+                        yield return CompareResources();
+                        _status = EHotfixResourceStatus.StartHotfix;
+                        OnStatusCallback?.Invoke(_status);
+                    }
+                    else
+                    {
+                        DestroySelf();
+                        _status = EHotfixResourceStatus.EnterGame;
+                        OnStatusCallback?.Invoke(_status);
+                    }
                 }
             }
         }
@@ -239,7 +259,7 @@ namespace GameUnityFramework.Resource
             /**
              * 服务器的AssetBundleManifest
              */
-            var serverManifestAssetBundlePath = ServerAddress + manifestAssetBundlePath;
+            var serverManifestAssetBundlePath = GetServerAssetURL(manifestAssetBundlePath);
             var serverUWR = UnityWebRequestAssetBundle.GetAssetBundle(serverManifestAssetBundlePath);
             yield return serverUWR.SendWebRequest();
             if (serverUWR.result == UnityWebRequest.Result.Success)
@@ -286,8 +306,17 @@ namespace GameUnityFramework.Resource
                         var str = fileStream.ReadToEnd();
                         if (!string.IsNullOrEmpty(str))
                         {
+                            _completeDownloadList = new HashSet<string>();
                             var list = str.Split(',');
-                            _completeDownloadList = new HashSet<string>(list);
+                            for (int i = 0; i < list.Length; i++)
+                            {
+                                if (!string.IsNullOrEmpty(list[i]))
+                                {
+                                    _completeDownloadList.Add(list[i]);
+                                }
+                            }
+                            var progress = 1.0f * _completeDownloadList.Count / _totalDownloadCount;
+                            SetProgress(progress);
                         }
                         fileStream.Close();
                     }
@@ -297,7 +326,10 @@ namespace GameUnityFramework.Resource
                     }
                 }
             }
-            if (_completeDownloadList == null || !_completeDownloadList.Contains(assetBundleName))
+
+            if (_completeDownloadList == null) _completeDownloadList = new HashSet<string>();
+            
+            if (!_completeDownloadList.Contains(assetBundleName))
             {
                 _needDownloadQueue.Enqueue(assetBundleName);
             }
@@ -326,12 +358,14 @@ namespace GameUnityFramework.Resource
                 if (_completeDownloadStreamWriter == null)
                 {
                     var completeDownloadFilePath = ResourcePathHelper.GetPresistentDataFilePath(CompleteDownloadFile);
-                    _completeDownloadStreamWriter = new StreamWriter(completeDownloadFilePath);
+                    _completeDownloadStreamWriter = new StreamWriter(completeDownloadFilePath, true);
                 }
                 _completeDownloadStreamWriter.Write(assetBundleName + ",");
                 _completeDownloadStreamWriter.Flush();
 
-                _completeDownloadCount++;
+                _completeDownloadList.Add(assetBundleName);
+                var progress = 1.0f * _completeDownloadList.Count / _totalDownloadCount;
+                SetProgress(progress);
             }
             catch (System.Exception e)
             {
@@ -397,10 +431,10 @@ namespace GameUnityFramework.Resource
             while(_needDownloadQueue.Count > 0 && _downloadAssetBundleList.Count < 10)
             {
                 var assetBundleName = _needDownloadQueue.Dequeue();
-                var downloadAssetBundleItem = _downloadAssetBundleItemPool.Count == 0 ? new DownloadAssetBundleItem() : _downloadAssetBundleItemPool.Dequeue();
+                var downloadAssetBundleItem = new DownloadAssetBundleItem();
                 downloadAssetBundleItem.AssetBundleName = assetBundleName;
-                var url = ServerAddress + AssetBundlesFolder + "/" + assetBundleName;
-                downloadAssetBundleItem.AssetBundleRequest.uri = new Uri(url);
+                var url = GetServerAssetURL(Path.Combine(AssetBundlesFolder, assetBundleName));
+                downloadAssetBundleItem.AssetBundleRequest = new UnityWebRequest(url);
                 downloadAssetBundleItem.AssetBundleRequest.downloadHandler = new DownloadHandlerBuffer();
                 downloadAssetBundleItem.AssetBundleRequest.SendWebRequest();
                 _downloadAssetBundleList.Add(downloadAssetBundleItem);
@@ -411,9 +445,10 @@ namespace GameUnityFramework.Resource
                 var downloadHandler = downloadAssetBundleItem.AssetBundleRequest.downloadHandler;
                 if (downloadHandler.isDone)
                 {
-                    Debug.LogError(downloadAssetBundleItem.AssetBundleName);
+                    //Debug.LogError(downloadAssetBundleItem.AssetBundleName);
                     ReplaceLocalResource(downloadAssetBundleItem.AssetBundleName, downloadAssetBundleItem.AssetBundleRequest.downloadHandler.data);
-                    _downloadAssetBundleItemPool.Enqueue(downloadAssetBundleItem);
+                    downloadAssetBundleItem.AssetBundleRequest.downloadHandler.Dispose();
+                    downloadAssetBundleItem.AssetBundleRequest.Dispose();
                     _downloadAssetBundleList.RemoveAt(i);
                 }
                 else if (!string.IsNullOrWhiteSpace(downloadHandler.error))
@@ -424,14 +459,32 @@ namespace GameUnityFramework.Resource
 
             if (_status == EHotfixResourceStatus.StartHotfix)
             {
-                if (_completeDownloadCount == _totalDownloadCount)
+                if (_completeDownloadList.Count == _totalDownloadCount)
                 {
                     UpdateVersionConfig();
-                    GameObject.Destroy(_self.gameObject);
-                    _status = EHotfixResourceStatus.HotfixSuccess;
+                    if (_completeDownloadStreamWriter != null) _completeDownloadStreamWriter.Close();
+                    File.Delete(ResourcePathHelper.GetPresistentDataFilePath(CompleteDownloadFile));
+                    _status = EHotfixResourceStatus.EnterGame;
                     OnStatusCallback?.Invoke(_status);
+                    DestroySelf();
                 }
             }
+        }
+
+        /// <summary>
+        /// 销毁
+        /// </summary>
+        private void DestroySelf()
+        {
+            foreach(var item in _downloadAssetBundleList)
+            {
+                if (item.AssetBundleRequest != null)
+                {
+                    item.AssetBundleRequest.downloadHandler.Dispose();
+                    item.AssetBundleRequest.Dispose();
+                }
+            }
+            GameObject.Destroy(gameObject);
         }
     }
 }
