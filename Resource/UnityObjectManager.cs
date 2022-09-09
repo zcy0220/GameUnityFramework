@@ -17,11 +17,11 @@ namespace GameUnityFramework.Resource
         /// <summary>
         /// 初始化资源加载器
         /// </summary>
-        public UnityObjectManager(string resourcePathPrefix)
+        public UnityObjectManager()
         {
-            ResourcePathHelper.ResourcePathPrefix = resourcePathPrefix;
 #if UNITY_EDITOR
-            _resourceLoader = new EditorResourceLoader();
+            //_resourceLoader = new EditorResourceLoader();
+            _resourceLoader = new AssetBundleLoader();
 #else
             _resourceLoader = new AssetBundleLoader();
 #endif

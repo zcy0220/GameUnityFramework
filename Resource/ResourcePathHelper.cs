@@ -4,6 +4,7 @@
 
 using System.IO;
 using UnityEngine;
+using System.Text;
 
 namespace GameUnityFramework.Resource
 {
@@ -13,13 +14,32 @@ namespace GameUnityFramework.Resource
         /// 资源完整路径的前缀
         /// </summary>
         public static string ResourcePathPrefix;
+        /// <summary>
+        /// AssetBundle存放根目录(相对于Application.streamingAssetsPath)
+        /// </summary>
+        public static string AssetBundlesFolder;
+        /// <summary>
+        /// Asset - AssetBundle映射配置路径
+        /// </summary>
+        public static string PackConfigPath;
+
+        /// <summary>
+        /// 路径连接
+        /// </summary>
+        /// <param name="path1"></param>
+        /// <param name="path2"></param>
+        /// <returns></returns>
+        public static string PathCombine(string path1, string path2)
+        {
+            return path1 + "/" + path2;
+        }
 
         /// <summary>
         /// 获得资源的完整路径
         /// </summary>
         public static string GetFullResourcePath(string path)
         {
-            return Path.Combine(ResourcePathPrefix, path);
+            return PathCombine(ResourcePathPrefix, path);
         }
 
         /// <summary>
@@ -37,7 +57,7 @@ namespace GameUnityFramework.Resource
         /// </summary>
         public static string GetStreamingAssetsFilePath(string filePath)
         {
-            return Path.Combine(Application.streamingAssetsPath, filePath);
+            return PathCombine(Application.streamingAssetsPath, filePath);
         }
 
         /// <summary>
@@ -45,7 +65,7 @@ namespace GameUnityFramework.Resource
         /// </summary>
         public static string GetPresistentDataFilePath(string filePath)
         {
-            return Path.Combine(Application.persistentDataPath, filePath);
+            return PathCombine(Application.persistentDataPath, filePath);
         }
 
         /// <summary>
@@ -55,6 +75,26 @@ namespace GameUnityFramework.Resource
         {
             var path = GetPresistentDataFilePath(filePath);
             return File.Exists(path);
+        }
+
+        /// <summary>
+        /// 根据资源路径映射对应的AssetBundle包名
+        /// </summary>
+        /// <returns></returns>
+        public static string GetAssetBundleName(string path)
+        {
+            return path.Replace("/", "_").Replace(".", "_").ToLower();
+        }
+
+        /// <summary>
+        /// 获取本地AssetBundle路径
+        /// </summary>
+        /// <param name="filePath"></param>
+        /// <returns></returns>
+        public static string GetLocalAssetBundlePath(string assetBundleName)
+        {
+            var assetBundlesPath = PathCombine(AssetBundlesFolder, assetBundleName);
+            return GetLocalFilePath(assetBundlesPath);
         }
     }
 }

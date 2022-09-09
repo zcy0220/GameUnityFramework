@@ -52,7 +52,7 @@ namespace GameUnityFramework.Resource
         /// <summary>
         /// AssetBundle的导出路径(相对于Application.streamingAssetsPath)
         /// </summary>
-        private const string AssetBundlesFolder = "assetbundles";
+        private string AssetBundlesFolder = ResourcePathHelper.AssetBundlesFolder;
         //=============================================================
         /// <summary>
         /// 热更新服务器地址
@@ -109,7 +109,7 @@ namespace GameUnityFramework.Resource
         {
             if (TextProgress != null)
             {
-                TextProgress.text = $"{Mathf.FloorToInt(progress * 100)}%";
+                TextProgress.text = $"{Mathf.CeilToInt(progress * 100)}%";
             }
             if (SliderProgress != null)
             {
@@ -117,7 +117,6 @@ namespace GameUnityFramework.Resource
             }
         }
         //=============================================================
-
         /// <summary>
         /// 开始检测热更新
         /// </summary>
