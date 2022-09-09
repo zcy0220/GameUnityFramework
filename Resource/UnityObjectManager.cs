@@ -20,8 +20,7 @@ namespace GameUnityFramework.Resource
         public UnityObjectManager()
         {
 #if UNITY_EDITOR
-            //_resourceLoader = new EditorResourceLoader();
-            _resourceLoader = new AssetBundleLoader();
+            _resourceLoader = new EditorResourceLoader();
 #else
             _resourceLoader = new AssetBundleLoader();
 #endif

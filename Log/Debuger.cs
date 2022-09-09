@@ -19,7 +19,7 @@ namespace GameUnityFramework.Log
         }
 
         /// <summary>
-        /// 
+        /// Log(color)
         /// </summary>
         /// <param name="msg"></param>
         /// <param name="color"></param>

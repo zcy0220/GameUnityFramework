@@ -24,16 +24,35 @@ namespace GameUnityFramework.Resource
         public List<string> AllDirectoryAndFileNames = new List<string>();
     }
 
-    internal class AssetBundleLoader : BaseResourceLoader
+    internal class AssetBundleUnit
     {
         /// <summary>
-        /// 资源和AssetBundle映射
+        /// 引用次数
         /// </summary>
-        private Dictionary<string, string> _packConfigDict = new Dictionary<string, string>();
+        public int RefCount;
+        /// <summary>
+        /// AssetBundle
+        /// </summary>
+        public AssetBundle AssetBundle;
+    }
+
+
+    internal class AssetBundleLoader : BaseResourceLoader
+    {
         /// <summary>
         /// AssetBundleManifest
         /// </summary>
         private AssetBundleManifest _assetBundleManifest;
+        /// <summary>
+        /// 资源和AssetBundle映射
+        /// 资源路径转为全小写存放
+        /// 因为Windows对路径大小写不敏感，其他平台又是严格大小写的
+        /// </summary>
+        private Dictionary<string, string> _packConfigDict = new Dictionary<string, string>();
+        /// <summary>
+        /// AssetBunldeName -> AssetBundleUnit
+        /// </summary>
+        private Dictionary<string, AssetBundleUnit> _assetBundleUnitDict = new Dictionary<string, AssetBundleUnit>();
 
         /// <summary>
         /// 
@@ -86,8 +105,16 @@ namespace GameUnityFramework.Resource
                 }
             }
 
-            //obj = UnityEditor.AssetDatabase.LoadAssetAtPath<T>(path);
-            //CacheResource(path, obj);
+            var assetBundleName = _packConfigDict[path.ToLower()];
+            var dependencies = _assetBundleManifest.GetAllDependencies(assetBundleName);
+            foreach (var depend in dependencies)
+            {
+                SyncLoadAssetBundle(depend);
+            }
+
+            var assetBundle = SyncLoadAssetBundle(assetBundleName);
+            obj = assetBundle.LoadAsset<T>(path);
+            CacheResource(path, obj);
             return obj as T;
         }
 
@@ -99,6 +126,34 @@ namespace GameUnityFramework.Resource
         public override bool Exists(string path)
         {
             return _packConfigDict.ContainsKey(path.ToLower());
+        }
+
+        /// <summary>
+        /// 根据AB包名同步加载AssetBundle
+        /// </summary>
+        /// <param name="assetBundleName"></param>
+        /// <returns></returns>
+        private AssetBundle SyncLoadAssetBundle(string assetBundleName)
+        {
+            if (_assetBundleUnitDict.TryGetValue(assetBundleName, out var assetBundleUnit))
+            {
+                assetBundleUnit.RefCount++;
+            }
+            else
+            {
+                var path = ResourcePathHelper.GetLocalAssetBundlePath(assetBundleName);
+                var assetBundle = AssetBundle.LoadFromFile(path);
+                if (assetBundle == null)
+                {
+                    Debuger.LogError($"load assetbundle error: {assetBundleName}");
+                    return null;
+                }
+                assetBundleUnit = new AssetBundleUnit();
+                assetBundleUnit.AssetBundle = assetBundle;
+                assetBundleUnit.RefCount = 1;
+                _assetBundleUnitDict.Add(assetBundleName, assetBundleUnit);
+            }
+            return assetBundleUnit.AssetBundle;
         }
     }
 }
