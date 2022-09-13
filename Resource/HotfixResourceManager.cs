@@ -17,6 +17,7 @@ namespace GameUnityFramework.Resource
     public class VersionConfig
     {
         public string Version;
+        public float Size;
     }
 
     /// <summary>
@@ -101,12 +102,14 @@ namespace GameUnityFramework.Resource
          */
         public UnityEngine.UI.Text TextProgress;
         public UnityEngine.UI.Slider SliderProgress;
+        public UnityEngine.UI.Text TextTips;
         /// <summary>
         /// 设置进度
         /// </summary>
         /// <param name="progress"></param>
-        private void SetProgress(float progress)
+        private void SetProgress(int completeDownloadCount, int totalDownloadCount)
         {
+            var progress = 1.0f * completeDownloadCount / totalDownloadCount;
             if (TextProgress != null)
             {
                 TextProgress.text = $"{Mathf.CeilToInt(progress * 100)}%";
@@ -114,6 +117,14 @@ namespace GameUnityFramework.Resource
             if (SliderProgress != null)
             {
                 SliderProgress.value = progress;
+            }
+            if (completeDownloadCount == totalDownloadCount)
+            {
+                TextTips.text = "更新完成";
+            }
+            else
+            {
+                TextTips.text = $"下载资源({String.Format("{0:N2}", 1.0f * _serverVersionConfig.Size * completeDownloadCount / totalDownloadCount)}M/{_serverVersionConfig.Size}M)";
             }
         }
         //=============================================================
@@ -293,6 +304,7 @@ namespace GameUnityFramework.Resource
         /// </summary>
         private void AddNeedDownLoadResource(string assetBundleName)
         {
+            Debug.LogError(assetBundleName);
             _totalDownloadCount++;
             if (_completeDownloadList == null)
             {
@@ -314,8 +326,7 @@ namespace GameUnityFramework.Resource
                                     _completeDownloadList.Add(list[i]);
                                 }
                             }
-                            var progress = 1.0f * _completeDownloadList.Count / _totalDownloadCount;
-                            SetProgress(progress);
+                            SetProgress(_completeDownloadList.Count, _totalDownloadCount);
                         }
                         fileStream.Close();
                     }
@@ -332,16 +343,6 @@ namespace GameUnityFramework.Resource
             {
                 _needDownloadQueue.Enqueue(assetBundleName);
             }
-        }
-
-        /// <summary>
-        /// 更新配置文件
-        /// </summary>
-        private void UpdateVersionConfig()
-        {
-            var path = ResourcePathHelper.GetPresistentDataFilePath(VersionConfigFile);
-            var text = JsonUtility.ToJson(_serverVersionConfig);
-            WriteAllText(path, text);
         }
 
         /// <summary>
@@ -363,8 +364,7 @@ namespace GameUnityFramework.Resource
                 _completeDownloadStreamWriter.Flush();
 
                 _completeDownloadList.Add(assetBundleName);
-                var progress = 1.0f * _completeDownloadList.Count / _totalDownloadCount;
-                SetProgress(progress);
+                SetProgress(_completeDownloadList.Count, _totalDownloadCount);
             }
             catch (System.Exception e)
             {
@@ -453,6 +453,7 @@ namespace GameUnityFramework.Resource
                 else if (!string.IsNullOrWhiteSpace(downloadHandler.error))
                 {
                     //todo:下载错误，记录AssetBundle再多下载一次，如果还错误，报DownloadError
+                    Debug.LogError(downloadHandler.error);
                 }
             }
 
@@ -460,14 +461,27 @@ namespace GameUnityFramework.Resource
             {
                 if (_completeDownloadList.Count == _totalDownloadCount)
                 {
-                    UpdateVersionConfig();
-                    if (_completeDownloadStreamWriter != null) _completeDownloadStreamWriter.Close();
-                    File.Delete(ResourcePathHelper.GetPresistentDataFilePath(CompleteDownloadFile));
-                    _status = EHotfixResourceStatus.EnterGame;
-                    OnStatusCallback?.Invoke(_status);
-                    DestroySelf();
+                    StartCoroutine(DownloadFinished());
                 }
             }
+        }
+
+        /// <summary>
+        /// 资源更新完成
+        /// </summary>
+        /// <returns></returns>
+        private IEnumerator DownloadFinished()
+        {
+            yield return null;
+            var path = ResourcePathHelper.GetPresistentDataFilePath(VersionConfigFile);
+            var text = JsonUtility.ToJson(_serverVersionConfig);
+            WriteAllText(path, text);
+            yield return null;
+            if (_completeDownloadStreamWriter != null) _completeDownloadStreamWriter.Close();
+            File.Delete(ResourcePathHelper.GetPresistentDataFilePath(CompleteDownloadFile));
+            _status = EHotfixResourceStatus.EnterGame;
+            OnStatusCallback?.Invoke(_status);
+            DestroySelf();
         }
 
         /// <summary>
