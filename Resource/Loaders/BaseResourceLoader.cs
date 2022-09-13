@@ -52,24 +52,6 @@ namespace GameUnityFramework.Resource
         public virtual void Update() { }
 
         /// <summary>
-        /// 清理缓存资源
-        /// </summary>
-        /// <param name="path">为空表示清理所有缓存资源</param>
-        /// <returns></returns>
-        protected void ClearCacheResource(string path = "")
-        {
-            if (string.IsNullOrEmpty(path))
-            {
-                _resourceCache.Clear();
-                return;
-            }
-            if (_resourceCache.ContainsKey(path))
-            {
-                _resourceCache.Remove(path);
-            }
-        }
-
-        /// <summary>
         /// 缓存资源
         /// </summary>
         protected void CacheResource(string path, Object obj)

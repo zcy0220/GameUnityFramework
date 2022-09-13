@@ -106,8 +106,8 @@ namespace GameUnityFramework.Resource
                 {
                     Resources.UnloadAsset(obj);
                 }
+                _resourceCache.Remove(path);
             }
-            ClearCacheResource(path);
         }
 
         /// <summary>

@@ -4,6 +4,7 @@
 
 using UnityEngine;
 using GameUnityFramework.Log;
+using System.Collections.Generic;
 
 namespace GameUnityFramework.Resource
 {
@@ -13,7 +14,11 @@ namespace GameUnityFramework.Resource
         /// 资源加载器
         /// </summary>
         private BaseResourceLoader _resourceLoader;
-        
+        /// <summary>
+        /// 资源引用列表映射
+        /// </summary>
+        private Dictionary<string, HashSet<Object>> _resourceRefDict = new Dictionary<string, HashSet<Object>>();
+
         /// <summary>
         /// 初始化资源加载器
         /// </summary>
@@ -24,6 +29,17 @@ namespace GameUnityFramework.Resource
 #else
             _resourceLoader = new AssetBundleLoader();
 #endif
+        }
+
+        /// <summary>
+        /// Update
+        /// </summary>
+        public void Update()
+        {
+            if (_resourceLoader != null)
+            {
+                _resourceLoader.Update();
+            }
         }
 
         #region 同步加载实例化对象资源
@@ -60,17 +76,6 @@ namespace GameUnityFramework.Resource
                     Debuger.LogError($"asyncload resource failed: {path}");
                 }
             });
-        }
-
-        /// <summary>
-        /// Update
-        /// </summary>
-        public void Update()
-        {
-            if (_resourceLoader != null)
-            {
-                _resourceLoader.Update();
-            }
         }
         #endregion
     }

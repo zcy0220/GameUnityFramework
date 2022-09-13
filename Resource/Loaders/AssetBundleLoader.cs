@@ -3,7 +3,6 @@
  */
 
 using UnityEngine;
-using System.IO;
 using System.Collections.Generic;
 using GameUnityFramework.Log;
 using Newtonsoft.Json;
@@ -53,6 +52,10 @@ namespace GameUnityFramework.Resource
         /// AssetBunldeName -> AssetBundleUnit
         /// </summary>
         private Dictionary<string, AssetBundleUnit> _assetBundleUnitDict = new Dictionary<string, AssetBundleUnit>();
+        /// <summary>
+        /// 强制保留永不卸载的AssetBundle(一般就是跟shader相关的AssetBundle)
+        /// </summary>
+        private HashSet<string> _noUnloadAssetBundleHashSet = new HashSet<string>();
 
         /// <summary>
         /// 
@@ -80,6 +83,10 @@ namespace GameUnityFramework.Resource
                     realFilePath += index == 0 ? name : "/" + name;
                 }
                 _packConfigDict.Add(realFilePath.ToLower(), item.Value);
+                if (realFilePath.EndsWith(".shader"))
+                {
+                    _noUnloadAssetBundleHashSet.Add(item.Key);
+                }
             }
         }
 
@@ -154,6 +161,49 @@ namespace GameUnityFramework.Resource
                 _assetBundleUnitDict.Add(assetBundleName, assetBundleUnit);
             }
             return assetBundleUnit.AssetBundle;
+        }
+
+        /// <summary>
+        /// 卸载AssetBundle
+        /// </summary>
+        /// <param name="assetBundleName">AB包名</param>
+        private void UnloadAssetBundle(string assetBundleName)
+        {
+            if (_assetBundleUnitDict.ContainsKey(assetBundleName))
+            {
+                var unit = _assetBundleUnitDict[assetBundleName];
+                unit.RefCount--;
+                Debuger.Log($"unload assetbundle:{assetBundleName}, refcount:{unit.RefCount}");
+                if (!_noUnloadAssetBundleHashSet.Contains(assetBundleName) && unit.RefCount <= 0)
+                {
+                    Debuger.Log($"real unload assetbundle:{assetBundleName}", "cyan");
+                    unit.AssetBundle?.Unload(true);
+                    _assetBundleUnitDict.Remove(assetBundleName);
+                }
+            }
+        }
+
+        /// <summary>
+        /// 卸载资源
+        /// </summary>
+        /// <param name="path"></param>
+        public override void Unload(string path)
+        {
+            if (_resourceCache.ContainsKey(path))
+            {
+                _resourceCache.Remove(path);
+            }
+
+            if (Exists(path))
+            {
+                var assetBundleName = _packConfigDict[path];
+                var dependencies = _assetBundleManifest.GetAllDependencies(assetBundleName);
+                UnloadAssetBundle(assetBundleName);
+                foreach (var depend in dependencies)
+                {
+                    UnloadAssetBundle(depend);
+                }
+            }
         }
     }
 }
