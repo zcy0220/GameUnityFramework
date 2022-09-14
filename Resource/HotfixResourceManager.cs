@@ -124,7 +124,7 @@ namespace GameUnityFramework.Resource
             }
             else
             {
-                TextTips.text = $"下载资源({String.Format("{0:N2}", 1.0f * _serverVersionConfig.Size * completeDownloadCount / totalDownloadCount)}M/{_serverVersionConfig.Size}M)";
+                TextTips.text = $"下载资源({(1.0f * _serverVersionConfig.Size * completeDownloadCount / totalDownloadCount).ToString("F2")}M/{_serverVersionConfig.Size}M)({completeDownloadCount}/{totalDownloadCount})";
             }
         }
         //=============================================================
@@ -245,17 +245,31 @@ namespace GameUnityFramework.Resource
         /// <returns></returns>
         private IEnumerator CompareResources()
         {
-            var manifestAssetBundlePath = Path.Combine(AssetBundlesFolder, AssetBundlesFolder);
+            var manifestAssetBundlePath = ResourcePathHelper.PathCombine(AssetBundlesFolder, AssetBundlesFolder);
             /**
              * 本地的AssetBundleManifest
              */
             var localManifestAssetBundlePath = ResourcePathHelper.GetLocalFilePath(manifestAssetBundlePath);
-            var localUWR = UnityWebRequestAssetBundle.GetAssetBundle(localManifestAssetBundlePath);
-            yield return localUWR.SendWebRequest();
+            //var localUWR = UnityWebRequestAssetBundle.GetAssetBundle(localManifestAssetBundlePath);
+            //yield return localUWR.SendWebRequest();
+            //var localAllAssetBundlesDict = new Dictionary<string, Hash128>();
+            //if (localUWR.result == UnityWebRequest.Result.Success)
+            //{
+            //    var localManifestAssetBundle = DownloadHandlerAssetBundle.GetContent(localUWR);
+            //    var localManifest = localManifestAssetBundle.LoadAsset<AssetBundleManifest>("AssetBundleManifest");
+            //    var localAllAssetBundles = new List<string>(localManifest.GetAllAssetBundles());
+            //    foreach (var abName in localAllAssetBundles)
+            //    {
+            //        localAllAssetBundlesDict.Add(abName, localManifest.GetAssetBundleHash(abName));
+            //    }
+            //    localManifestAssetBundle.Unload(true);
+            //}
+            //localUWR.Dispose();
             var localAllAssetBundlesDict = new Dictionary<string, Hash128>();
-            if (localUWR.result == UnityWebRequest.Result.Success)
+            if (File.Exists(localManifestAssetBundlePath))
             {
-                var localManifestAssetBundle = DownloadHandlerAssetBundle.GetContent(localUWR);
+                Debug.LogError(localManifestAssetBundlePath);
+                var localManifestAssetBundle = AssetBundle.LoadFromFile(localManifestAssetBundlePath);
                 var localManifest = localManifestAssetBundle.LoadAsset<AssetBundleManifest>("AssetBundleManifest");
                 var localAllAssetBundles = new List<string>(localManifest.GetAllAssetBundles());
                 foreach (var abName in localAllAssetBundles)
@@ -264,7 +278,6 @@ namespace GameUnityFramework.Resource
                 }
                 localManifestAssetBundle.Unload(true);
             }
-            localUWR.Dispose();
 
             /**
              * 服务器的AssetBundleManifest
@@ -304,7 +317,6 @@ namespace GameUnityFramework.Resource
         /// </summary>
         private void AddNeedDownLoadResource(string assetBundleName)
         {
-            Debug.LogError(assetBundleName);
             _totalDownloadCount++;
             if (_completeDownloadList == null)
             {
@@ -432,7 +444,7 @@ namespace GameUnityFramework.Resource
                 var assetBundleName = _needDownloadQueue.Dequeue();
                 var downloadAssetBundleItem = new DownloadAssetBundleItem();
                 downloadAssetBundleItem.AssetBundleName = assetBundleName;
-                var url = GetServerAssetURL(Path.Combine(AssetBundlesFolder, assetBundleName));
+                var url = GetServerAssetURL(ResourcePathHelper.PathCombine(AssetBundlesFolder, assetBundleName));
                 downloadAssetBundleItem.AssetBundleRequest = new UnityWebRequest(url);
                 downloadAssetBundleItem.AssetBundleRequest.downloadHandler = new DownloadHandlerBuffer();
                 downloadAssetBundleItem.AssetBundleRequest.SendWebRequest();
@@ -459,7 +471,7 @@ namespace GameUnityFramework.Resource
 
             if (_status == EHotfixResourceStatus.StartHotfix)
             {
-                if (_completeDownloadList.Count == _totalDownloadCount)
+                if (_completeDownloadList == null || _completeDownloadList.Count == _totalDownloadCount)
                 {
                     StartCoroutine(DownloadFinished());
                 }
