@@ -469,6 +469,12 @@ namespace GameUnityFramework.Resource
                 {
                     //todo:下载错误，记录AssetBundle再多下载一次，如果还错误，报DownloadError
                     Debug.LogError(downloadHandler.error);
+                    downloadAssetBundleItem.AssetBundleRequest.downloadHandler.Dispose();
+                    downloadAssetBundleItem.AssetBundleRequest.Dispose();
+                    var url = GetServerAssetURL(AssetBundlesFolder + "/" + downloadAssetBundleItem.AssetBundleName);
+                    downloadAssetBundleItem.AssetBundleRequest = new UnityWebRequest(url);
+                    downloadAssetBundleItem.AssetBundleRequest.downloadHandler = new DownloadHandlerBuffer();
+                    downloadAssetBundleItem.AssetBundleRequest.SendWebRequest();
                 }
             }
 
