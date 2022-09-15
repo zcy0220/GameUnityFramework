@@ -307,6 +307,10 @@ namespace GameUnityFramework.Resource
                 }
                 if (_totalDownloadCount > 0) AddNeedDownLoadResource(AssetBundlesFolder);
                 serverManifestAssetBundle.Unload(true);
+                if (_completeDownloadList != null)
+                {
+                    SetProgress(_completeDownloadList.Count, _totalDownloadCount);
+                }
             }
             serverUWR.Dispose();
         }
@@ -338,7 +342,6 @@ namespace GameUnityFramework.Resource
                                     _completeDownloadList.Add(list[i]);
                                 }
                             }
-                            SetProgress(_completeDownloadList.Count, _totalDownloadCount);
                         }
                         fileStream.Close();
                     }
