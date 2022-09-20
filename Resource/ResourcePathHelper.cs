@@ -22,6 +22,10 @@ namespace GameUnityFramework.Resource
         /// Asset - AssetBundle映射配置路径
         /// </summary>
         public static string PackConfigPath;
+        /// <summary>
+        /// 当覆盖安装包时，StreamingAssets要比PresistentData新
+        /// </summary>
+        public static bool IsStreamingAssetsVersionNew = false;
 
         /// <summary>
         /// 路径连接
@@ -49,7 +53,14 @@ namespace GameUnityFramework.Resource
         /// </summary>
         public static string GetLocalFilePath(string filePath)
         {
-            return CheckPresistentDataFileExsits(filePath) ? GetPresistentDataFilePath(filePath) : GetStreamingAssetsFilePath(filePath);
+            if (IsStreamingAssetsVersionNew)
+            {
+                return GetStreamingAssetsFilePath(filePath);
+            }
+            else
+            {
+                return CheckPresistentDataFileExsits(filePath) ? GetPresistentDataFilePath(filePath) : GetStreamingAssetsFilePath(filePath);
+            }
         }
 
         /// <summary>

@@ -35,7 +35,7 @@ namespace GameUnityFramework.Resource
         /// <summary>
         /// 版本(时间)
         /// </summary>
-        public string Version = "0_0";
+        public string Version = "0";
         /// <summary>
         /// AssetBundleInfoList
         /// </summary>
@@ -158,6 +158,7 @@ namespace GameUnityFramework.Resource
             {
                 var complete = (1.0f * completeDownloadSize / 1024 / 1024).ToString("F2");
                 var total = (1.0f * totalDownloadSize / 1024 / 1024).ToString("F2");
+                Debug.LogError($"{complete}M/{total}M");
                 TextTips.text = $"下载资源({complete}M/{total}M)";
             }
         }
@@ -184,11 +185,28 @@ namespace GameUnityFramework.Resource
 
         /// <summary>
         /// 初始化本地版本配置信息
+        /// 当覆盖安装时，StreamingAssets的版本信息要比PresistentData新
         /// </summary>
         private IEnumerator InitLocalVersionConfig()
         {
-            var versionConfigPath = ResourcePathHelper.GetLocalFilePath(VersionConfigFile);
-            using (var uwr = new UnityWebRequest(versionConfigPath))
+            if (ResourcePathHelper.CheckPresistentDataFileExsits(VersionConfigFile))
+            {
+                var presistentDataVersionConfigPath = ResourcePathHelper.GetPresistentDataFilePath(VersionConfigFile);
+                using (var uwr = new UnityWebRequest(presistentDataVersionConfigPath))
+                {
+                    uwr.downloadHandler = new DownloadHandlerBuffer();
+                    uwr.timeout = 5;
+                    uwr.disposeDownloadHandlerOnDispose = true;
+                    yield return uwr.SendWebRequest();
+                    if (uwr.result == UnityWebRequest.Result.Success)
+                    {
+                        _localVersionConfig = JsonUtility.FromJson<VersionConfig>(uwr.downloadHandler.text);
+                    }
+                }
+            }
+
+            var streamingAssetsVersionConfigPath = ResourcePathHelper.GetStreamingAssetsFilePath(VersionConfigFile);
+            using (var uwr = new UnityWebRequest(streamingAssetsVersionConfigPath))
             {
                 uwr.downloadHandler = new DownloadHandlerBuffer();
                 uwr.timeout = 5;
@@ -196,12 +214,23 @@ namespace GameUnityFramework.Resource
                 yield return uwr.SendWebRequest();
                 if (uwr.result == UnityWebRequest.Result.Success)
                 {
-                    _localVersionConfig = JsonUtility.FromJson<VersionConfig>(uwr.downloadHandler.text);
+                    var localVersionConfig = JsonUtility.FromJson<VersionConfig>(uwr.downloadHandler.text);
+                    if (localVersionConfig != null)
+                    {
+                        var pLocalVersion = long.Parse(_localVersionConfig.Version);
+                        var sLocalVersion = long.Parse(localVersionConfig.Version);
+                        if (sLocalVersion > pLocalVersion)
+                        {
+                            ResourcePathHelper.IsStreamingAssetsVersionNew = true;
+                            _localVersionConfig = localVersionConfig;
+                        }
+                    }
                 }
-                else
-                {
-                    _localVersionConfig = new VersionConfig();
-                }
+            }
+
+            if (_localVersionConfig == null)
+            {
+                _localVersionConfig = new VersionConfig();
             }
         }
 
@@ -224,7 +253,7 @@ namespace GameUnityFramework.Resource
                     {
                         var info = _serverVersionConfig.AssetBundleInfoList[i];
                         _assetBundleInfoDict.Add(info.Name, info);
-                        _totalDownloadSize += info.Size;
+                        //_totalDownloadSize += info.Size;
                     }
                 }
                 else
@@ -244,22 +273,9 @@ namespace GameUnityFramework.Resource
         {
             if (_localVersionConfig != null &&_serverVersionConfig != null)
             {
-                var localVersionConfig = _localVersionConfig.Version.Split('_');
-                var serverVersionConfig = _serverVersionConfig.Version.Split('_');
-                var localVersion0 = int.Parse(localVersionConfig[0]);
-                var localVersion1 = int.Parse(localVersionConfig[1]);
-                var serverVersion0 = int.Parse(serverVersionConfig[0]);
-                var serverVersion1 = int.Parse(serverVersionConfig[1]);
-                //// 大版本更新
-                //if (serverVersion0 > localVersion0)
-                //{
-                //    DestroySelf();
-                //    _status = EHotfixResourceStatus.NewVersion;
-                //    OnStatusCallback?.Invoke(_status);
-                //    yield return null;
-                //}
-                // 热更新
-                if (serverVersion0 > localVersion0 && serverVersion1 > localVersion1)
+                var localVersion = long.Parse(_localVersionConfig.Version);
+                var serverVersion = long.Parse(_serverVersionConfig.Version);
+                if (serverVersion > localVersion)
                 {
                     yield return CompareResources();
                     _status = EHotfixResourceStatus.StartHotfix;
@@ -286,12 +302,26 @@ namespace GameUnityFramework.Resource
             /**
              * 本地的AssetBundleManifest
              */
-            try
+          
+             var localManifestAssetBundlePath = ResourcePathHelper.GetLocalFilePath(manifestAssetBundlePath);
+                //var localManifestAssetBundle = AssetBundle.LoadFromFile(localManifestAssetBundlePath);
+                //if (localManifestAssetBundle != null)
+                //{
+                //    var localManifest = localManifestAssetBundle.LoadAsset<AssetBundleManifest>("AssetBundleManifest");
+                //    var localAllAssetBundles = new List<string>(localManifest.GetAllAssetBundles());
+                //    foreach (var abName in localAllAssetBundles)
+                //    {
+                //        localAllAssetBundlesDict.Add(abName, localManifest.GetAssetBundleHash(abName));
+                //    }
+                //    localManifestAssetBundle.Unload(true);
+                //}
+
+            using (var uwr = UnityWebRequestAssetBundle.GetAssetBundle(localManifestAssetBundlePath))
             {
-                var localManifestAssetBundlePath = ResourcePathHelper.GetLocalFilePath(manifestAssetBundlePath);
-                var localManifestAssetBundle = AssetBundle.LoadFromFile(localManifestAssetBundlePath);
-                if (localManifestAssetBundle != null)
+                yield return uwr.SendWebRequest();
+                if (uwr.result == UnityWebRequest.Result.Success)
                 {
+                    var localManifestAssetBundle = DownloadHandlerAssetBundle.GetContent(uwr);
                     var localManifest = localManifestAssetBundle.LoadAsset<AssetBundleManifest>("AssetBundleManifest");
                     var localAllAssetBundles = new List<string>(localManifest.GetAllAssetBundles());
                     foreach (var abName in localAllAssetBundles)
@@ -300,10 +330,6 @@ namespace GameUnityFramework.Resource
                     }
                     localManifestAssetBundle.Unload(true);
                 }
-            }
-            catch (Exception e)
-            {
-                Debug.LogWarning(e.Message);
             }
 
             /**
@@ -346,6 +372,10 @@ namespace GameUnityFramework.Resource
                         }
                         SetProgress(_completeDownloadSize, _totalDownloadSize);
                     }
+                    if (_assetBundleInfoDict.TryGetValue(AssetBundlesFolder, out var info))
+                    {
+                        _totalDownloadSize += info.Size;
+                    }
                 }
             }
         }
@@ -357,6 +387,10 @@ namespace GameUnityFramework.Resource
         private void AddNeedDownLoadResource(string assetBundleName)
         {
             _totalDownloadCount++;
+            if (_assetBundleInfoDict.TryGetValue(assetBundleName, out var info))
+            {
+                _totalDownloadSize += info.Size;
+            }
             if (_completeDownloadList == null)
             {
                 var completeDownloadFilePath = ResourcePathHelper.GetPresistentDataFilePath(CompleteDownloadFile);
@@ -417,7 +451,7 @@ namespace GameUnityFramework.Resource
                     _completeDownloadSize += assetBundleInfo.Size;
                 }
 
-                SetProgress(_completeDownloadSize, _totalDownloadCount);
+                SetProgress(_completeDownloadSize, _totalDownloadSize);
             }
             catch (System.Exception e)
             {
@@ -552,7 +586,8 @@ namespace GameUnityFramework.Resource
                     var text = JsonUtility.ToJson(_serverVersionConfig);
                     WriteAllText(versionConfigPath, text);
 
-                    SetProgress(_totalDownloadCount, _totalDownloadCount);
+                    ResourcePathHelper.IsStreamingAssetsVersionNew = false;
+                    SetProgress(_totalDownloadSize, _totalDownloadSize);
                     yield return null;
                     DestroySelf();
                     _status = EHotfixResourceStatus.EnterGame;
