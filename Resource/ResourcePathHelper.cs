@@ -53,14 +53,15 @@ namespace GameUnityFramework.Resource
         /// </summary>
         public static string GetLocalFilePath(string filePath)
         {
-            if (IsStreamingAssetsVersionNew)
+            if (!IsStreamingAssetsVersionNew)
             {
-                return GetStreamingAssetsFilePath(filePath);
+                var path = GetPresistentDataFilePath(filePath);
+                if (File.Exists(path))
+                {
+                    return path;
+                }
             }
-            else
-            {
-                return CheckPresistentDataFileExsits(filePath) ? GetPresistentDataFilePath(filePath) : GetStreamingAssetsFilePath(filePath);
-            }
+            return GetStreamingAssetsFilePath(filePath);
         }
 
         /// <summary>
@@ -77,15 +78,6 @@ namespace GameUnityFramework.Resource
         public static string GetPresistentDataFilePath(string filePath)
         {
             return PathCombine(Application.persistentDataPath, filePath);
-        }
-
-        /// <summary>
-        /// 检测PresistentData下的资源文件路径
-        /// </summary>
-        public static bool CheckPresistentDataFileExsits(string filePath)
-        {
-            var path = GetPresistentDataFilePath(filePath);
-            return File.Exists(path);
         }
 
         /// <summary>
