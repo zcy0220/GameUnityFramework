@@ -87,7 +87,7 @@ namespace GameUnityFramework.Resource
         /// <returns></returns>
         public static string GetAssetBundleName(string path)
         {
-            return path.Replace("/", "_").Replace(".", "_").ToLower();
+            return path.Replace("/", "_").Replace(".", "_").Replace("+", "_").ToLower();
         }
 
         /// <summary>
