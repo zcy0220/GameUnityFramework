@@ -24,6 +24,7 @@ namespace GameUnityFramework.Resource
         public static string PackConfigPath;
         /// <summary>
         /// 当覆盖安装包时，StreamingAssets要比PresistentData新
+        /// 热更时直接删除PresistentData的旧资源的话就不用设置
         /// </summary>
         public static bool IsStreamingAssetsVersionNew = false;
 
