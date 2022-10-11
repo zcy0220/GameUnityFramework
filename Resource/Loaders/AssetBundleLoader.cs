@@ -236,10 +236,18 @@ namespace GameUnityFramework.Resource
             var assetBundleName = _packConfigDict[request.Path.ToLower()];
             if (_assetBundleUnitDict.TryGetValue(assetBundleName, out var assetBundleUnit))
             {
-                var abRequest = assetBundleUnit.AssetBundle.LoadAssetAsync(request.Path);
-                yield return abRequest;
-                request.State = ERequestState.Done;
-                request.Callback?.Invoke(abRequest.asset);
+                if (assetBundleUnit.AssetBundle.isStreamedSceneAssetBundle)
+                {
+                    request.State = ERequestState.Done;
+                    request.Callback?.Invoke(null);
+                }
+                else
+                {
+                    var abRequest = assetBundleUnit.AssetBundle.LoadAssetAsync(request.Path);
+                    yield return abRequest;
+                    request.State = ERequestState.Done;
+                    request.Callback?.Invoke(abRequest.asset);
+                }
             }
         }
 

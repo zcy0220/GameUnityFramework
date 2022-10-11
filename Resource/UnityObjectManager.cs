@@ -11,6 +11,10 @@ namespace GameUnityFramework.Resource
     public class UnityObjectManager
     {
         /// <summary>
+        /// 定时扫描检测空资源
+        /// </summary>
+        private const float CheckResourceTime = 60.0f;
+        /// <summary>
         /// 资源加载器
         /// </summary>
         private BaseResourceLoader _resourceLoader;
@@ -18,7 +22,14 @@ namespace GameUnityFramework.Resource
         /// 资源引用列表映射
         /// </summary>
         private Dictionary<string, HashSet<Object>> _resourceRefDict = new Dictionary<string, HashSet<Object>>();
-
+        /// <summary>
+        /// 需要清除null的列表
+        /// </summary>
+        private List<Object> _needClearNullRefList = new List<Object>();
+        /// <summary>
+        /// 剩余时间
+        /// </summary>
+        private float _leftTime = CheckResourceTime;
         /// <summary>
         /// 初始化资源加载器
         /// </summary>
@@ -40,6 +51,67 @@ namespace GameUnityFramework.Resource
             {
                 _resourceLoader.Update();
             }
+
+            CheckResourceRefDict();
+        }
+
+        /// <summary>
+        /// 检测_resourceRefDict引用列表中为空的资源
+        /// </summary>
+        private void CheckResourceRefDict()
+        {
+            _leftTime -= Time.deltaTime;
+            if (_leftTime <= 0)
+            {
+                _leftTime = CheckResourceTime;
+                foreach(var item in _resourceRefDict)
+                {
+                    foreach(var obj in item.Value)
+                    {
+                        if (obj == null)
+                        {
+                            _needClearNullRefList.Add(obj);
+                        }
+                    }
+                    for(var i = 0; i < _needClearNullRefList.Count; i++)
+                    {
+                        item.Value.Remove(_needClearNullRefList[i]);
+                    }
+                    _needClearNullRefList.Clear();
+                }
+            }
+        }
+
+        /// <summary>
+        /// 增加引用
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="obj"></param>
+        private void AddResourceRef(string path, Object obj)
+        {
+            if (!_resourceRefDict.TryGetValue(path, out var resourceSet))
+            {
+                resourceSet = new HashSet<Object>();
+            }
+            if (!resourceSet.Contains(obj))
+            {
+                resourceSet.Add(obj);
+            }
+        }
+
+        /// <summary>
+        /// 异步加载资源
+        /// 不记录引用，要自己管理资源卸载
+        /// </summary>
+        /// <param name="path"></param>
+        /// <param name="callback"></param>
+        public void AsyncLoad(string path, System.Action<Object> callback)
+        {
+            path = ResourcePathHelper.GetFullResourcePath(path);
+            _resourceLoader.AsyncLoad(path, (orginal) =>
+            {
+                callback?.Invoke(orginal);
+            });
         }
 
         #region 同步加载实例化对象资源
@@ -50,6 +122,7 @@ namespace GameUnityFramework.Resource
             if (orginal != null)
             {
                 var obj = GameObject.Instantiate(orginal);
+                AddResourceRef(path, obj);
                 return obj;
             }
             else
@@ -69,6 +142,7 @@ namespace GameUnityFramework.Resource
                 if (orginal != null)
                 {
                     var obj = GameObject.Instantiate(orginal) as GameObject;
+                    AddResourceRef(path, obj);
                     callback(obj);
                 }
                 else
@@ -78,19 +152,5 @@ namespace GameUnityFramework.Resource
             });
         }
         #endregion
-
-        /// <summary>
-        /// 同步加载
-        /// 不会自动记录引用
-        /// 要自己管理资源
-        /// </summary>
-        /// <typeparam name="T"></typeparam>
-        /// <param name="path"></param>
-        /// <returns></returns>
-        public T SyncLoad<T>(string path) where T : Object
-        {
-            path = ResourcePathHelper.GetFullResourcePath(path);
-            return _resourceLoader.SyncLoad<T>(path);
-        }
     }
 }
