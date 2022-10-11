@@ -78,5 +78,19 @@ namespace GameUnityFramework.Resource
             });
         }
         #endregion
+
+        /// <summary>
+        /// 同步加载
+        /// 不会自动记录引用
+        /// 要自己管理资源
+        /// </summary>
+        /// <typeparam name="T"></typeparam>
+        /// <param name="path"></param>
+        /// <returns></returns>
+        public T SyncLoad<T>(string path) where T : Object
+        {
+            path = ResourcePathHelper.GetFullResourcePath(path);
+            return _resourceLoader.SyncLoad<T>(path);
+        }
     }
 }

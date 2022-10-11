@@ -4,7 +4,6 @@
 
 using System;
 using GameUnityFramework.Log;
-using GameBaseFramework.Patterns;
 
 namespace GameUnityFramework.Utils
 {
@@ -18,7 +17,7 @@ namespace GameUnityFramework.Utils
     /// </summary>
     public delegate void MonoFixedUpdateEvent(int deltaTime);
 
-    public class MonoBehaviourUtil : Singleton<MonoBehaviourUtil>
+    public class MonoBehaviourUtil
     {
         /// <summary>
         /// 渲染Update

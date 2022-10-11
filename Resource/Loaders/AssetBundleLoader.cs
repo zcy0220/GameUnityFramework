@@ -3,9 +3,10 @@
  */
 
 using UnityEngine;
+using Newtonsoft.Json;
+using System.Collections;
 using System.Collections.Generic;
 using GameUnityFramework.Log;
-using Newtonsoft.Json;
 
 namespace GameUnityFramework.Resource
 {
@@ -35,6 +36,10 @@ namespace GameUnityFramework.Resource
         public AssetBundle AssetBundle;
     }
 
+    /// <summary>
+    /// 资源加载的协程
+    /// </summary>
+    internal class LoaderCoroutine : MonoBehaviour { }
 
     internal class AssetBundleLoader : BaseResourceLoader
     {
@@ -56,6 +61,18 @@ namespace GameUnityFramework.Resource
         /// 强制保留永不卸载的AssetBundle(一般就是跟shader相关的AssetBundle)
         /// </summary>
         private HashSet<string> _noUnloadAssetBundleHashSet = new HashSet<string>();
+        /// <summary>
+        /// 需要删除的异步请求列表
+        /// </summary>
+        private List<int> _removeAsyncLoadRequestList = new List<int>();
+        /// <summary>
+        /// 资源加载协程
+        /// </summary>
+        private LoaderCoroutine _loaderCoroutine;
+        /// <summary>
+        /// 异步请求AssetBundle队列
+        /// </summary>
+        protected List<AsyncLoadRequest> _asyncLoadAssetBundleRequestList = new List<AsyncLoadRequest>();
 
         /// <summary>
         /// 
@@ -88,6 +105,8 @@ namespace GameUnityFramework.Resource
                     _noUnloadAssetBundleHashSet.Add(item.Key);
                 }
             }
+            _loaderCoroutine = new GameObject("AssetLoaderCoroutine").AddComponent<LoaderCoroutine>();
+            GameObject.DontDestroyOnLoad(_loaderCoroutine.gameObject);
         }
 
         /// <summary>
@@ -203,6 +222,168 @@ namespace GameUnityFramework.Resource
                 {
                     UnloadAssetBundle(depend);
                 }
+            }
+        }
+
+        /// <summary>
+        /// 异步加载资源
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        private IEnumerator AsyncLoadAsset(AsyncLoadRequest request)
+        {
+            request.State = ERequestState.Loading;
+            var assetBundleName = _packConfigDict[request.Path.ToLower()];
+            if (_assetBundleUnitDict.TryGetValue(assetBundleName, out var assetBundleUnit))
+            {
+                var abRequest = assetBundleUnit.AssetBundle.LoadAssetAsync(request.Path);
+                yield return abRequest;
+                request.State = ERequestState.Done;
+                request.Callback?.Invoke(abRequest.asset);
+            }
+        }
+
+        /// <summary>
+        /// 异步加载资源
+        /// </summary>
+        /// <param name="request"></param>
+        /// <returns></returns>
+        private IEnumerator AsyncLoadAssetBundle(AsyncLoadRequest request)
+        {
+            request.State = ERequestState.Loading;
+            var assetBundleName = request.Path;
+            var path = ResourcePathHelper.GetLocalAssetBundlePath(assetBundleName);
+            var abCreateRequest = AssetBundle.LoadFromFileAsync(path);
+            yield return abCreateRequest;
+            var assetBundle = abCreateRequest.assetBundle;
+            if (assetBundle != null)
+            {
+                var assetBundleUnit = new AssetBundleUnit();
+                assetBundleUnit.AssetBundle = assetBundle;
+                assetBundleUnit.RefCount = request.Count;
+                _assetBundleUnitDict.Add(assetBundleName, assetBundleUnit);
+            }
+            request.State = ERequestState.Done;
+        }
+
+        /// <summary>
+        /// 检查对应资源路径对应的所有依赖包是否都加载完了
+        /// </summary>
+        /// <param name="path"></param>
+        /// <returns></returns>
+        public void CheckAllDependenciesLoaded(AsyncLoadRequest request)
+        {
+            var isAllLoaded = true;
+            var path = request.Path;
+            var assetBundleName = _packConfigDict[path.ToLower()];
+            if (!_assetBundleUnitDict.ContainsKey(assetBundleName))
+            {
+                AsyncLoadAssetBundle(assetBundleName);
+                isAllLoaded = false;
+            }
+            var dependencies = _assetBundleManifest.GetAllDependencies(assetBundleName);
+            foreach (var depend in dependencies)
+            {
+                if (!_assetBundleUnitDict.ContainsKey(depend))
+                {
+                    AsyncLoadAssetBundle(depend);
+                    isAllLoaded = false;
+                }
+            }
+            if (isAllLoaded)
+            {
+                request.State = ERequestState.Ready;
+            }
+        }
+
+        /// <summary>
+        /// 添加异步加载AssetBundle请求到队列
+        /// </summary>
+        /// <param name="assetBundleName"></param>
+        private void AsyncLoadAssetBundle(string assetBundleName)
+        {
+            for(var i = 0; i < _asyncLoadAssetBundleRequestList.Count; i++)
+            {
+                var request = _asyncLoadAssetBundleRequestList[i];
+                if (request.Path == assetBundleName)
+                {
+                    request.Count++;
+                    return;
+                }
+            }
+            var assetBundleRequest = new AsyncLoadRequest();
+            assetBundleRequest.State = ERequestState.Ready;
+            assetBundleRequest.Path = assetBundleName;
+            _asyncLoadAssetBundleRequestList.Add(assetBundleRequest);
+        }
+
+        /// <summary>
+        /// Update检测异步加载请求
+        /// </summary>
+        public override void Update()
+        {
+            UpdateAsyncLoadRequest();
+            UpdateAsyncLoadAssetBundleRequest();
+        }
+
+        /// <summary>
+        /// 处理更新异步资源请求
+        /// </summary>
+        private void UpdateAsyncLoadRequest()
+        {
+            for (int i = 0; i < _asyncLoadRequestList.Count; i++)
+            {
+                var request = _asyncLoadRequestList[i];
+                if (request.State == ERequestState.None)
+                {
+                    CheckAllDependenciesLoaded(request);
+                }
+                if (request.State == ERequestState.Ready)
+                {
+                    _loaderCoroutine.StartCoroutine(AsyncLoadAsset(request));
+                }
+                if (request.State == ERequestState.Done)
+                {
+                    _removeAsyncLoadRequestList.Add(i);
+                }
+            }
+
+            if (_removeAsyncLoadRequestList.Count > 0)
+            {
+                for (int i = _removeAsyncLoadRequestList.Count - 1; i >= 0; i--)
+                {
+                    var index = _removeAsyncLoadRequestList[i];
+                    _asyncLoadRequestList.RemoveAt(index);
+                }
+                _removeAsyncLoadRequestList.Clear();
+            }
+        }
+
+        /// <summary>
+        /// 处理更新异步AssetBundle请求
+        /// </summary>
+        private void UpdateAsyncLoadAssetBundleRequest()
+        {
+            for (int i = 0; i < _asyncLoadAssetBundleRequestList.Count; i++)
+            {
+                var request = _asyncLoadAssetBundleRequestList[i];
+                if (request.State == ERequestState.Ready)
+                {
+                    _loaderCoroutine.StartCoroutine(AsyncLoadAssetBundle(request));
+                }
+                if (request.State == ERequestState.Done)
+                {
+                    _removeAsyncLoadRequestList.Add(i);
+                }
+            }
+            if (_removeAsyncLoadRequestList.Count > 0)
+            {
+                for (int i = _removeAsyncLoadRequestList.Count - 1; i >= 0; i--)
+                {
+                    var index = _removeAsyncLoadRequestList[i];
+                    _removeAsyncLoadRequestList.RemoveAt(index);
+                }
+                _removeAsyncLoadRequestList.Clear();
             }
         }
     }

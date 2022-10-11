@@ -4,6 +4,7 @@
 
 using UnityEngine;
 using System.Collections.Generic;
+using GameUnityFramework.Log;
 
 namespace GameUnityFramework.Resource
 {
@@ -12,7 +13,7 @@ namespace GameUnityFramework.Resource
         /// <summary>
         /// 异步请求队列
         /// </summary>
-        protected Queue<AsyncLoadRequest> _asyncLoadRequestQueue = new Queue<AsyncLoadRequest>();
+        protected List<AsyncLoadRequest> _asyncLoadRequestList = new List<AsyncLoadRequest>();
         /// <summary>
         /// 缓存资源
         /// </summary>
@@ -31,7 +32,40 @@ namespace GameUnityFramework.Resource
         /// </summary>
         /// <param name="path"></param>
         /// <param name="callback"></param>
-        public virtual void AsyncLoad(string path, System.Action<Object> callback) { }
+        public virtual void AsyncLoad(string path, System.Action<Object> callback)
+        {
+            if (!Exists(path))
+            {
+                Debuger.LogError($"not find resource path: {path}");
+                return;
+            }
+
+            if (_resourceCache.TryGetValue(path, out var obj))
+            {
+                if (obj != null)
+                {
+                    callback.Invoke(obj);
+                    return;
+                }
+            }
+
+            for (var i = 0; i < _asyncLoadRequestList.Count; i++)
+            {
+                var request = _asyncLoadRequestList[i];
+                if (request.Path.Equals(path, System.StringComparison.OrdinalIgnoreCase))
+                {
+                    request.Count++;
+                    request.Callback += callback;
+                    return;
+                }
+            }
+
+            var asyncRequest = new AsyncLoadRequest();
+            asyncRequest.Path = path;
+            asyncRequest.Callback = callback;
+            asyncRequest.Callback += (obj) => { CacheResource(path, obj); };
+            _asyncLoadRequestList.Add(asyncRequest);
+        }
 
         /// <summary>
         /// 卸载资源
