@@ -5,6 +5,7 @@
 using UnityEngine;
 using GameUnityFramework.Log;
 using System.Collections.Generic;
+using UnityEngine.UI;
 
 namespace GameUnityFramework.Resource
 {
@@ -113,6 +114,19 @@ namespace GameUnityFramework.Resource
                 callback?.Invoke(orginal);
             });
         }
+
+        #region Srpite相关
+        public void SyncLoadSrpite(string path, Image image)
+        {
+            path = ResourcePathHelper.GetFullResourcePath(path);
+            var sprite = _resourceLoader.SyncLoad<Sprite>(path);
+            if (sprite != null)
+            {
+                AddResourceRef(path, image);
+                image.sprite = sprite;
+            }
+        }
+        #endregion
 
         #region 同步加载实例化对象资源
         public GameObject SyncGameObjectInstantiate(string path)
