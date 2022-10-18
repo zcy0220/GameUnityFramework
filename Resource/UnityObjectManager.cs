@@ -14,7 +14,7 @@ namespace GameUnityFramework.Resource
         /// <summary>
         /// 定时扫描检测空资源
         /// </summary>
-        private const float CheckResourceTime = 60.0f;
+        private const float CheckResourceTime = 30.0f;
         /// <summary>
         /// 资源加载器
         /// </summary>
