@@ -14,7 +14,7 @@ namespace GameUnityFramework.Resource
         /// <summary>
         /// 定时扫描检测空资源
         /// </summary>
-        private const float CheckResourceTime = 30.0f;
+        private const float CheckResourceRefTime = 30.0f;
         /// <summary>
         /// 资源加载器
         /// </summary>
@@ -30,7 +30,7 @@ namespace GameUnityFramework.Resource
         /// <summary>
         /// 剩余时间
         /// </summary>
-        private float _leftTime = CheckResourceTime;
+        private float _leftTime = CheckResourceRefTime;
         /// <summary>
         /// 初始化资源加载器
         /// </summary>
@@ -64,7 +64,8 @@ namespace GameUnityFramework.Resource
             _leftTime -= Time.deltaTime;
             if (_leftTime <= 0)
             {
-                _leftTime = CheckResourceTime;
+                Debug.Log("unity object manager ==> check resource ref");
+                _leftTime = CheckResourceRefTime;
                 foreach(var item in _resourceRefDict)
                 {
                     foreach(var obj in item.Value)

@@ -9,12 +9,11 @@ namespace GameUnityFramework.Log
         /// <summary>
         /// Log
         /// </summary>
-        /// <param name="msg"></param>
-        /// <param name="args"></param>
-        public static void Log(string msg, params object[] args)
+        /// <param name="message"></param>
+        public static void Log(string message)
         {
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
-            UnityEngine.Debug.LogFormat(msg, args);
+#if UNITY_EDITOR
+            UnityEngine.Debug.Log(message);
 #endif
         }
 
@@ -23,10 +22,22 @@ namespace GameUnityFramework.Log
         /// </summary>
         /// <param name="msg"></param>
         /// <param name="color"></param>
-        public static void Log(string msg, string color)
+        public static void Log(string message, string color)
         {
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
-            UnityEngine.Debug.Log($"<color={color}>{msg}</color>");
+#if UNITY_EDITOR
+            UnityEngine.Debug.Log($"<color={color}>{message}</color>");
+#endif
+        }
+
+        /// <summary>
+        /// Log
+        /// </summary>
+        /// <param name="msg"></param>
+        /// <param name="args"></param>
+        public static void Log(string message, params object[] args)
+        {
+#if UNITY_EDITOR
+            UnityEngine.Debug.LogFormat(message, args);
 #endif
         }
 
@@ -35,10 +46,10 @@ namespace GameUnityFramework.Log
         /// </summary>
         /// <param name="msg"></param>
         /// <param name="args"></param>
-        public static void LogWarning(string msg, params object[] args)
+        public static void LogWarning(string message, params object[] args)
         {
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
-            UnityEngine.Debug.LogWarningFormat(msg, args);
+#if UNITY_EDITOR
+            UnityEngine.Debug.LogWarningFormat(message, args);
 #endif
         }
 
@@ -49,7 +60,7 @@ namespace GameUnityFramework.Log
         /// <param name="args"></param>
         public static void LogError(string format, params object[] args)
         {
-#if DEVELOPMENT_BUILD || UNITY_EDITOR
+#if UNITY_EDITOR
             UnityEngine.Debug.LogErrorFormat(format, args);
 #endif
         }
