@@ -146,6 +146,23 @@ namespace GameUnityFramework.Resource
                 return null;
             }
         }
+
+        public GameObject SyncGameObjectInstantiate(string path, Transform parent)
+        {
+            path = ResourcePathHelper.GetFullResourcePath(path);
+            var orginal = _resourceLoader.SyncLoad<GameObject>(path);
+            if (orginal != null)
+            {
+                var obj = GameObject.Instantiate(orginal, parent);
+                AddResourceRef(path, obj);
+                return obj;
+            }
+            else
+            {
+                Debuger.LogError($"syncload resource failed: {path}");
+                return null;
+            }
+        }
         #endregion
 
         #region 异步加载实例化对象资源
