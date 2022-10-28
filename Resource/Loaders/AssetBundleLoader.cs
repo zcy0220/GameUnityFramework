@@ -6,7 +6,7 @@ using UnityEngine;
 using Newtonsoft.Json;
 using System.Collections;
 using System.Collections.Generic;
-using GameUnityFramework.Log;
+using GameBaseFramework.Base;
 
 namespace GameUnityFramework.Resource
 {
@@ -195,7 +195,7 @@ namespace GameUnityFramework.Resource
                 Debuger.Log($"unload assetbundle:{assetBundleName}, refcount:{unit.RefCount}");
                 if (!_noUnloadAssetBundleHashSet.Contains(assetBundleName) && unit.RefCount <= 0)
                 {
-                    Debuger.Log($"real unload assetbundle:{assetBundleName}", "cyan");
+                    Debuger.Log($"real unload assetbundle:{assetBundleName}");
                     unit.AssetBundle?.Unload(true);
                     _assetBundleUnitDict.Remove(assetBundleName);
                 }

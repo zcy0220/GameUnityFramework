@@ -4,7 +4,7 @@
 
 using System.IO;
 using UnityEngine;
-using GameUnityFramework.Log;
+using GameBaseFramework.Base;
 
 namespace GameUnityFramework.Resource
 {

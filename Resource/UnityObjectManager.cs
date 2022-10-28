@@ -3,7 +3,7 @@
  */
 
 using UnityEngine;
-using GameUnityFramework.Log;
+using GameBaseFramework.Base;
 using System.Collections.Generic;
 using UnityEngine.UI;
 

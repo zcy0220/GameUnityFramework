@@ -3,7 +3,7 @@
  */
 
 using System;
-using GameUnityFramework.Log;
+using GameBaseFramework.Base;
 
 namespace GameUnityFramework.Utils
 {
